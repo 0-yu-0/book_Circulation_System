@@ -1,0 +1,41 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.example</groupId>
+    <artifactId>book-circulation-system</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <properties>
+        <!-- Target Java version for the project (set to current; upgrade tools will change this) -->
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <source>${maven.compiler.source}</source>
+                    <target>${maven.compiler.target}</target>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+    
+    <dependencies>
+        <!-- 使用项目内的 MySQL JDBC driver JAR（本地路径：lib/mysql-connector-j-9.1.0.jar）
+             注意：Maven 的 system scope 已被弃用，使用本地 jar 仅适合小型/本地项目或临时调试。
+             推荐长期使用：把 jar 安装到本地 maven 仓库或使用远程仓库依赖。 -->
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <version>9.1.0</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/mysql-connector-j-9.1.0.jar</systemPath>
+        </dependency>
+    </dependencies>
+</project>
