@@ -1,0 +1,1 @@
+import{a_ as a,G as e,H as s,ay as n,y as r,z as u,M as l,u as c}from"./vendor_vue-CyXBEfF2.js";const f={__name:"BookDetail",setup(_){const o=a().params.id;return(p,m)=>{const t=n("layout");return r(),e(t,null,{default:s(()=>[u("div",null,"Book Detail - ID: "+l(c(o)),1)]),_:1})}}};export{f as default};

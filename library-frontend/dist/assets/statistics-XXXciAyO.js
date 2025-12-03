@@ -1,0 +1,1 @@
+import{i as e}from"./index-C-RrEStG.js";function o(){return e.get("/statistics/overview")}function r(t=10){return e.get("/statistics/popular-books",{params:{top:t}})}function i(t){return e.get("/statistics/overdue-books",{params:t})}export{r as a,i as b,o as g};

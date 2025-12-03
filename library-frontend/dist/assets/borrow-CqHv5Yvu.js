@@ -1,0 +1,1 @@
+import{i as o}from"./index-C-RrEStG.js";function e(r){return o.post("/borrow",r)}function n(r){return o.post("/return",r)}function c(r){return o.get("/borrow/record",{params:r})}export{e as c,c as f,n as r};

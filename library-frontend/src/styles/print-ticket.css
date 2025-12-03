@@ -1,0 +1,17 @@
+/* Print styles for borrow receipts */
+.ticket{font-family: "Helvetica", "PingFang SC", "Microsoft Yahei", sans-serif; width: 520px; margin: 0 auto; color:#000;}
+.title{ text-align:center; font-size:18px; margin-bottom:8px; font-weight:700 }
+.meta{ font-size:14px; margin:6px 0 }
+.book-row{ font-size:14px; margin:4px 0; display:flex; justify-content:space-between }
+.book-row .left{ flex:1 }
+.book-row .right{ width:120px; text-align:right }
+.footer{ text-align:center; font-size:12px; margin-top:12px }
+.separator{ border-top:1px dashed #333; margin:8px 0 }
+
+@media print {
+  body * { visibility: hidden; }
+  #print-ticket, #print-ticket * { visibility: visible; }
+  #print-ticket { position: absolute; left: 0; top: 0; width: 100%; }
+  @page { size: A5; margin: 8mm; }
+}
+
