@@ -14,7 +14,7 @@
       >
         <el-menu-item index="/">
           <el-icon><House /></el-icon>
-          <span v-show="!collapsed">仪表盘</span>
+          <span v-show="!collapsed">概览</span>
         </el-menu-item>
         <el-menu-item index="/books">
           <el-icon><Collection /></el-icon>
