@@ -1,0 +1,73 @@
+@use './variables.scss';
+
+// Global Styles
+body {
+  font-family: variables.$font-family;
+  background-color: variables.$background-color;
+  color: variables.$neutral-color-1;
+  margin: 0;
+  padding: 0;
+}
+
+// Card Styles
+.el-card {
+  border-radius: variables.$border-radius-base;
+  box-shadow: variables.$box-shadow-base;
+  border: none;
+  margin-bottom: variables.$spacing-2;
+
+  &:hover {
+    box-shadow: variables.$box-shadow-hover;
+  }
+
+  .el-card__header {
+    border-bottom: 1px solid variables.$border-color;
+    padding: variables.$spacing-2;
+    font-weight: bold;
+  }
+
+  .el-card__body {
+    padding: variables.$spacing-2;
+  }
+}
+
+// Button Styles
+.el-button {
+  border-radius: variables.$border-radius-base;
+  font-weight: 500;
+  
+  &.el-button--primary {
+    background-color: variables.$primary-color;
+    border-color: variables.$primary-color;
+    
+    &:hover {
+      opacity: 0.9;
+    }
+  }
+}
+
+// Form Styles
+.el-form-item {
+  margin-bottom: variables.$spacing-2;
+}
+
+.el-input__wrapper {
+  border-radius: variables.$border-radius-small;
+}
+
+// Table Styles
+.el-table {
+  border-radius: variables.$border-radius-base;
+  overflow: hidden;
+  
+  th {
+    background-color: variables.$background-color;
+  }
+}
+
+// Pagination Styles
+.el-pagination {
+  margin-top: variables.$spacing-2;
+  display: flex;
+  justify-content: flex-end;
+}

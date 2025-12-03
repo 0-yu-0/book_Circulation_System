@@ -9,6 +9,8 @@ import 'element-plus/dist/index.css'
 import './mock'
 // Global print styles for receipts
 import './styles/print-ticket.css'
+// Global styles for visual upgrade
+import './styles/global.scss'
 
 const app = createApp(App)
 app.use(createPinia())

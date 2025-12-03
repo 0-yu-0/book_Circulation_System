@@ -5,12 +5,21 @@
       class="sidebar"
       :class="{ 'sidebar-collapsed': collapsed, 'sidebar-expanded': !collapsed }"
     >
-      <div class="logo">Library</div>
+      <div class="logo-container">
+        <div class="logo-icon">
+          <el-icon size="24"><Collection /></el-icon>
+        </div>
+        <div class="logo-text" v-show="!collapsed">
+          <div class="logo-title">图书借还</div>
+          <div class="logo-subtitle">管理系统</div>
+        </div>
+      </div>
       <el-menu 
         :default-active="$route.path" 
         router
         :collapse="collapsed"
         class="menu"
+        :unique-opened="true"
       >
         <el-menu-item index="/">
           <el-icon><House /></el-icon>
@@ -57,20 +66,33 @@
             class="toggle-button" 
             @click="toggleSidebar" 
             circle 
-            :icon="collapsed ? 'Expand' : 'Fold'"
-          />
-          <h2 class="page-title" v-show="!collapsed">Library Circulation System</h2>
+          >
+            <el-icon v-if="collapsed"><ArrowRight /></el-icon>
+            <el-icon v-else><ArrowLeft /></el-icon>
+          </el-button>
+          <!-- 添加面包屑导航 -->
+          <el-breadcrumb v-show="!collapsed" separator="/" class="breadcrumb">
+<!--            <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>-->
+            <el-breadcrumb-item>{{ currentPageTitle }}</el-breadcrumb-item>
+          </el-breadcrumb>
         </div>
         <div class="header-right">
+          <!-- 用户头像替换文本退出按钮 -->
           <el-dropdown @command="handleCommand">
-            <el-button type="text">
-              <el-icon><UserFilled /></el-icon>
-              <span v-show="!collapsed">管理员</span>
-            </el-button>
+            <span class="user-avatar">
+              <el-avatar :icon="UserFilled" size="small" />
+              <span v-show="!collapsed" class="user-name">管理员</span>
+            </span>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="settings">系统设置</el-dropdown-item>
-                <el-dropdown-item command="logout">退出</el-dropdown-item>
+                <el-dropdown-item command="settings">
+                  <el-icon><Setting /></el-icon>
+                  系统设置
+                </el-dropdown-item>
+                <el-dropdown-item command="logout">
+                  <el-icon><SwitchButton /></el-icon>
+                  退出登录
+                </el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -86,8 +108,8 @@
 <script setup>
 import { useUIStore } from '../stores/ui'
 import { useAuthStore } from '../stores/auth'
-import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import {
   House,
   Collection,
@@ -98,13 +120,33 @@ import {
   UserFilled,
   Setting,
   Tickets,
-  Warning
+  Warning,
+  SwitchButton,
+  ArrowLeft,
+  ArrowRight
 } from '@element-plus/icons-vue'
 
 const ui = useUIStore()
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 const collapsed = ref(ui.sidebarCollapsed)
+
+// 计算当前页面标题
+const currentPageTitle = computed(() => {
+  const routeMap = {
+    '/': '概览',
+    '/books': '图书管理',
+    '/readers': '读者管理',
+    '/borrow': '借书',
+    '/return': '还书',
+    '/borrow-history': '借阅历史',
+    '/overdue-records': '逾期记录',
+    '/statistics': '统计',
+    '/settings': '设置'
+  }
+  return routeMap[route.path] || '未知页面'
+})
 
 function toggleSidebar() {
   collapsed.value = !collapsed.value
@@ -151,6 +193,7 @@ onMounted(() => {
   transition: width 0.3s ease;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
   overflow-y: auto;
+  background-color: #ffffff;
 }
 
 .sidebar-collapsed {
@@ -161,16 +204,61 @@ onMounted(() => {
   width: 200px;
 }
 
-.logo {
+.logo-container {
+  display: flex;
+  align-items: center;
   padding: 16px;
-  text-align: center;
-  font-weight: bold;
-  font-size: 18px;
   border-bottom: 1px solid #e6e6e6;
+  background: linear-gradient(90deg, #f0f8ff 0%, #e6f7ff 100%);
+  transition: all 0.3s ease;
+}
+
+.logo-container:hover {
+  background: linear-gradient(90deg, #e6f7ff 0%, #f0f8ff 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.logo-icon {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #409EFF 0%, #1890FF 100%);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  margin-right: 12px;
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+.logo-icon:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(64, 158, 255, 0.4);
+}
+
+.logo-text {
+  white-space: nowrap;
+  transition: all 0.3s ease;
+}
+
+.logo-title {
+  font-weight: bold;
+  font-size: 16px;
+  color: #1890FF;
+  line-height: 1.2;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.logo-subtitle {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.2;
 }
 
 .menu {
   border-right: none !important;
+  height: calc(100% - 77px);
 }
 
 .header {
@@ -188,6 +276,10 @@ onMounted(() => {
   gap: 16px;
 }
 
+.breadcrumb {
+  margin-left: 8px;
+}
+
 .page-title {
   margin: 0;
   font-size: 18px;
@@ -196,6 +288,17 @@ onMounted(() => {
 .header-right {
   display: flex;
   align-items: center;
+}
+
+.user-avatar {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  gap: 8px;
+}
+
+.user-name {
+  font-size: 14px;
 }
 
 .main-content {
