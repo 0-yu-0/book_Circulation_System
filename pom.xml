@@ -7,8 +7,8 @@
     <version>1.0-SNAPSHOT</version>
     <properties>
         <!-- Target Java version for the project (set to current; upgrade tools will change this) -->
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -37,6 +37,18 @@
             <version>9.1.0</version>
             <scope>system</scope>
             <systemPath>${project.basedir}/lib/mysql-connector-j-9.1.0.jar</systemPath>
+        </dependency>
+        <!-- Jackson for JSON parsing/serialization -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.15.2</version>
+        </dependency>
+        <!-- Java Time module to handle LocalDate/LocalDateTime -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+            <version>2.15.2</version>
         </dependency>
     </dependencies>
 </project>
