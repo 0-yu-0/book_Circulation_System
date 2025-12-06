@@ -1,4 +1,3 @@
-
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -35,6 +34,9 @@ public class Server {
     public static void main(String[] args) throws Exception {
         int port = 8080;
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
+        
+        // Add CORS header to all responses
+        server.createContext("/api", new CorsHandler());
 
         // Books
         server.createContext("/api/books", new BooksHandler());
@@ -78,11 +80,55 @@ public class Server {
         }
     }
     static void sendJson(HttpExchange ex, int code, Object obj) throws IOException {
+        // Add CORS headers to all JSON responses
+        ex.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
+        ex.getResponseHeaders().add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+        ex.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        
         byte[] bytes = mapper.writeValueAsBytes(obj);
         ex.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
         ex.sendResponseHeaders(code, bytes.length);
         try (OutputStream os = ex.getResponseBody()) {
             os.write(bytes);
+        }
+    }
+
+    // Unified response helpers (success/error) to ensure frontend/backend contract consistency
+    static void sendOk(HttpExchange ex, Object data) throws IOException {
+        Map<String,Object> resp = new HashMap<>();
+        resp.put("code", 0);
+        resp.put("data", data);
+        sendJson(ex, 200, resp);
+    }
+
+    static void sendError(HttpExchange ex, int httpCode, int code, String message) throws IOException {
+        Map<String,Object> resp = new HashMap<>();
+        resp.put("code", code);
+        resp.put("message", message);
+        sendJson(ex, httpCode, resp);
+    }
+    
+    // CORS handler to allow cross-origin requests
+    // This handler only processes OPTIONS preflight requests
+    static class CorsHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange ex) throws IOException {
+            // Add CORS headers to response
+            ex.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
+            ex.getResponseHeaders().add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+            ex.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type, Authorization");
+            
+            // Handle preflight OPTIONS request
+            if ("OPTIONS".equals(ex.getRequestMethod())) {
+                ex.sendResponseHeaders(200, -1);
+                ex.close();
+                return;
+            }
+            
+            // For non-OPTIONS requests to /api, return 404
+            // This is expected as specific handlers will handle actual API paths
+            ex.sendResponseHeaders(404, -1);
+            ex.close();
         }
     }
 
@@ -97,6 +143,10 @@ public class Server {
     static boolean requireAuth(HttpExchange ex) throws IOException {
         String token = getAuthToken(ex);
         if (token == null || !service.authService.validateToken(token)) {
+            // 对于OPTIONS请求，即使没有token也要放行，否则CORS预检会失败
+            if ("OPTIONS".equals(ex.getRequestMethod())) {
+                return true;
+            }
             sendJson(ex,401, Map.of("code",401,"message","unauthorized"));
             return false;
         }
@@ -116,27 +166,30 @@ public class Server {
                     // /api/books or /api/books/{id}
                     String[] parts = path.split("/");
                     if (parts.length == 3 || (parts.length==4 && parts[3].isEmpty())) {
-                        // list
+                        // list (support offset/limit and page/size)
                         Map<String, String> q = queryToMap(uri.getQuery());
-                        int offset = Integer.parseInt(q.getOrDefault("offset", "0"));
-                        int limit = Integer.parseInt(q.getOrDefault("limit", "20"));
+                        int offset = 0; int limit = 20;
+                        if (q.containsKey("page") && q.containsKey("size")) {
+                            try { int page = Integer.parseInt(q.get("page")); int size = Integer.parseInt(q.get("size")); offset = Math.max(0, (page-1))*size; limit = size; } catch(Exception exx) { offset = Integer.parseInt(q.getOrDefault("offset", "0")); limit = Integer.parseInt(q.getOrDefault("limit", "20")); }
+                        } else {
+                            offset = Integer.parseInt(q.getOrDefault("offset", "0"));
+                            limit = Integer.parseInt(q.getOrDefault("limit", "20"));
+                        }
                         String search = q.get("search");
                         String author = q.get("author");
                         String category = q.get("category");
                         List<bookInformation> items = bookService.listBooks(offset, limit, search, author, category);
+                        int total = bookService.countBooks(search, author, category);
                         Map<String,Object> data = new HashMap<>();
                         data.put("items", items);
-                        data.put("total", items.size());
-                        Map<String,Object> resp = new HashMap<>();
-                        resp.put("code", 0);
-                        resp.put("data", data);
-                        sendJson(ex,200, resp);
+                        data.put("total", total);
+                        sendOk(ex, data);
                         return;
                     } else if (parts.length >=4) {
                         String id = parts[3];
                         bookInformation b = bookService.getBookById(id);
-                        if (b == null) { sendJson(ex,404, Map.of("code",1,"message","not found")); return; }
-                        sendJson(ex,200, b);
+                        if (b == null) { sendError(ex,404,1,"not found"); return; }
+                        sendOk(ex, b);
                         return;
                     }
                 }
@@ -186,7 +239,7 @@ public class Server {
                         String id = parts[3];
                         String body = readBody(ex);
                         bookInformation b = bookService.getBookById(id);
-                        if (b == null) { sendJson(ex,404,"{\"code\":1,\"message\":\"not found\"}"); return; }
+                        if (b == null) { sendError(ex,404,1,"not found"); return; }
                         Map<String,Object> m = mapper.readValue(body, new TypeReference<Map<String,Object>>(){});
                         if (m.get("isbn")!=null) b.setIsbn(String.valueOf(m.get("isbn")));
                         if (m.get("bookName")!=null) b.setBookName(String.valueOf(m.get("bookName")));
@@ -210,8 +263,12 @@ public class Server {
                     String[] parts = path.split("/");
                     if (parts.length>=4) {
                         String id = parts[3];
-                        boolean ok = bookService.deleteBook(id);
-                        if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","delete failed"));
+                        try {
+                            boolean ok = bookService.deleteBook(id);
+                            if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","delete failed"));
+                        } catch (SQLException e) {
+                            sendJson(ex,500, Map.of("code",1,"message","Cannot delete book with borrowing records"));
+                        }
                         return;
                     }
                 }
@@ -237,27 +294,33 @@ public class Server {
                     String card = parts[4];
                     readerInformation r = readerService.getReaderByCardNumber(card);
                     if (r==null) { sendJson(ex,404, Map.of("code",1,"message","not found")); return; }
-                    sendJson(ex,200, r);
+                    sendOk(ex, r);
                     return;
                 }
                 // GET list or GET item
                 if ("GET".equalsIgnoreCase(method)) {
                     if (parts.length == 3 || (parts.length==4 && parts[3].isEmpty())) {
                         Map<String,String> q = queryToMap(uri.getQuery());
-                        int offset = Integer.parseInt(q.getOrDefault("offset","0"));
-                        int limit = Integer.parseInt(q.getOrDefault("limit","20"));
+                        int offset = 0; int limit = 20;
+                        if (q.containsKey("page") && q.containsKey("size")) {
+                            try { int page = Integer.parseInt(q.get("page")); int size = Integer.parseInt(q.get("size")); offset = Math.max(0,(page-1))*size; limit = size; } catch(Exception exx) { offset = Integer.parseInt(q.getOrDefault("offset","0")); limit = Integer.parseInt(q.getOrDefault("limit","20")); }
+                        } else {
+                            offset = Integer.parseInt(q.getOrDefault("offset","0"));
+                            limit = Integer.parseInt(q.getOrDefault("limit","20"));
+                        }
                         String search = q.get("search");
                         List<readerInformation> items = readerService.listReaders(offset, limit, search);
+                        int total = readerService.countReaders(search);
                         Map<String,Object> data = new HashMap<>();
                         data.put("items", items);
-                        data.put("total", items.size());
-                        sendJson(ex,200, Map.of("code",0, "data", data));
+                        data.put("total", total);
+                        sendOk(ex, data);
                         return;
                     } else if (parts.length>=4) {
                         String id = parts[3];
                         readerInformation r = readerService.getReaderById(id);
-                        if (r==null) { sendJson(ex,404, Map.of("code",1,"message","not found")); return; }
-                        sendJson(ex,200, r);
+                        if (r==null) { sendError(ex,404,1,"not found"); return; }
+                        sendOk(ex, r);
                         return;
                     }
                 }
@@ -309,8 +372,12 @@ public class Server {
                     String[] p = path.split("/");
                     if (p.length>=4) {
                         String id = p[3];
-                        boolean ok = readerService.deleteReader(id);
-                        if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","delete failed"));
+                        try {
+                            boolean ok = readerService.deleteReader(id);
+                            if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","delete failed"));
+                        } catch (SQLException e) {
+                            sendJson(ex,500, Map.of("code",1,"message","Cannot delete reader with borrowing records"));
+                        }
                         return;
                     }
                 }
@@ -342,10 +409,13 @@ public class Server {
                             else if ("returned".equalsIgnoreCase(statusS)) status = 1;
                         }
                     }
-                    int offset = Integer.parseInt(q.getOrDefault("offset","0"));
-                    int limit = Integer.parseInt(q.getOrDefault("limit","20"));
+                    int offset = 0; int limit = 20;
+                    if (q.containsKey("page") && q.containsKey("size")) {
+                        try { int page = Integer.parseInt(q.get("page")); int size = Integer.parseInt(q.get("size")); offset = Math.max(0,(page-1))*size; limit = size; } catch(Exception exx) { offset = Integer.parseInt(q.getOrDefault("offset","0")); limit = Integer.parseInt(q.getOrDefault("limit","20")); }
+                    } else { offset = Integer.parseInt(q.getOrDefault("offset","0")); limit = Integer.parseInt(q.getOrDefault("limit","20")); }
                     var items = borrowService.listBorrows(readerId, status, offset, limit);
-                    sendJson(ex,200, Map.of("code",0, "data", Map.of("items", items, "total", items.size())));
+                    int total = borrowService.countBorrows(readerId, status);
+                    sendOk(ex, Map.of("items", items, "total", total));
                     return;
                 }
 
@@ -353,18 +423,33 @@ public class Server {
                     String body = readBody(ex);
                     Map<String,Object> m = mapper.readValue(body, new TypeReference<Map<String,Object>>(){});
                     String readerId = m.get("readerId") == null ? "" : String.valueOf(m.get("readerId"));
-                    String bookId = m.get("bookId") == null ? "" : String.valueOf(m.get("bookId"));
                     String borrowDateS = m.get("borrowDate") == null ? "" : String.valueOf(m.get("borrowDate"));
                     String dueDateS = m.get("dueDate") == null ? "" : String.valueOf(m.get("dueDate"));
                     LocalDate borrowDate = borrowDateS.isEmpty() ? LocalDate.now() : LocalDate.parse(borrowDateS);
                     LocalDate dueDate = dueDateS.isEmpty() ? borrowDate.plusDays(14) : LocalDate.parse(dueDateS);
-                    long borrowId = borrowService.createBorrowSingle(bookId, readerId, borrowDate, dueDate);
-                    sendJson(ex,200, Map.of("code",0, "data", Map.of("borrowId", borrowId)));
-                    return;
-                }
+                    if (m.get("books") != null) {
+                        java.util.List<?> books = (java.util.List<?>) m.get("books");
+                        java.util.List<String> bookIds = new java.util.ArrayList<>();
+                        for (Object o : books) {
+                            if (o instanceof java.util.Map) {
+                                Object bid = ((java.util.Map<?,?>)o).get("bookId");
+                                if (bid != null) bookIds.add(String.valueOf(bid));
+                            } else {
+                                bookIds.add(String.valueOf(o));
+                            }
+                        }
+                        var created = borrowService.createBorrowBatch(bookIds, readerId, borrowDate, dueDate);
+                        sendOk(ex, Map.of("borrowIds", created));
+                    } else {
+                        String bookId = m.get("bookId") == null ? "" : String.valueOf(m.get("bookId"));
+                        long borrowId = borrowService.createBorrowSingle(bookId, readerId, borrowDate, dueDate);
+                        sendOk(ex, Map.of("borrowId", borrowId));
+                    }
+                     return;
+                 }
 
-                sendJson(ex,405, Map.of("code",405,"message","method not allowed"));
-                return;
+                 sendJson(ex,405, Map.of("code",405,"message","method not allowed"));
+                 return;
             } catch (SQLException se) {
                 sendJson(ex,500, Map.of("code",500,"message", se.getMessage()));
             } catch (Exception e) {
@@ -384,19 +469,27 @@ public class Server {
                 }
                 String body = readBody(ex);
                 Map<String,Object> m = mapper.readValue(body, new TypeReference<Map<String,Object>>(){});
-                String borrowIdS = m.get("borrowId") == null ? "" : String.valueOf(m.get("borrowId"));
                 String returnDateS = m.get("returnDate") == null ? "" : String.valueOf(m.get("returnDate"));
-                long borrowId = Long.parseLong(borrowIdS);
                 LocalDate returnDate = returnDateS.isEmpty() ? LocalDate.now() : LocalDate.parse(returnDateS);
-                long returnId = returnService.createReturn(borrowId, returnDate);
-                sendJson(ex,200, Map.of("code",0, "data", Map.of("returnId", returnId)));
-            } catch (SQLException se) {
-                sendJson(ex,500, Map.of("code",500,"message", se.getMessage()));
-            } catch (Exception e) {
-                sendJson(ex,400, Map.of("code",400,"message","invalid request"));
-            }
-        }
-    }
+                if (m.get("borrowIds") != null) {
+                    java.util.List<?> ids = (java.util.List<?>) m.get("borrowIds");
+                    java.util.List<Long> longs = new java.util.ArrayList<>();
+                    for (Object o : ids) longs.add(Long.parseLong(String.valueOf(o)));
+                    var result = returnService.createReturnBatch(longs, returnDate);
+                    sendOk(ex, Map.of("returned", result));
+                } else {
+                    String borrowIdS = m.get("borrowId") == null ? "" : String.valueOf(m.get("borrowId"));
+                    long borrowId = Long.parseLong(borrowIdS);
+                    long returnId = returnService.createReturn(borrowId, returnDate);
+                    sendOk(ex, Map.of("returnId", returnId));
+                }
+             } catch (SQLException se) {
+                 sendJson(ex,500, Map.of("code",500,"message", se.getMessage()));
+             } catch (Exception e) {
+                 sendJson(ex,400, Map.of("code",400,"message","invalid request"));
+             }
+         }
+     }
 
     static class AuthHandler implements HttpHandler {
         @Override
@@ -479,13 +572,21 @@ public class Server {
                     int offset = Integer.parseInt(q.getOrDefault("offset","0"));
                     int limit = Integer.parseInt(q.getOrDefault("limit","20"));
                     var items = service.bookService.getVacantBooks(offset, limit);
-                    sendJson(ex,200, Map.of("code",0, "data", Map.of("items", items)));
+                    int total = service.bookService.countVacantBooks();
+                    Map<String,Object> data = new HashMap<>();
+                    data.put("items", items);
+                    data.put("total", total);
+                    sendOk(ex, data);
                     return;
                 } else if ("overdue".equalsIgnoreCase(type) || "overdue-books".equalsIgnoreCase(type)) {
                     int offset = Integer.parseInt(q.getOrDefault("offset","0"));
                     int limit = Integer.parseInt(q.getOrDefault("limit","20"));
                     var items = service.borrowService.getOverdueList(offset, limit);
-                    sendJson(ex,200, Map.of("code",0, "data", Map.of("items", items)));
+                    int total = service.borrowService.countOverdue();
+                    Map<String,Object> data = new HashMap<>();
+                    data.put("items", items);
+                    data.put("total", total);
+                    sendOk(ex, data);
                     return;
                 } else if ("overview".equalsIgnoreCase(type)) {
                     // compute simple overview metrics via direct queries
@@ -497,10 +598,10 @@ public class Server {
                         try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT COUNT(*) FROM readerInformation")) {
                             try (java.sql.ResultSet rs = ps.executeQuery()) { if (rs.next()) totalReaders = rs.getInt(1); }
                         }
-                        try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT COUNT(*) FROM borrowTable WHERE borrowStatus = 0")) {
+                        try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT COUNT(*) FROM borrowTable WHERE borrowStates = 0")) {
                             try (java.sql.ResultSet rs = ps.executeQuery()) { if (rs.next()) borrowedNow = rs.getInt(1); }
                         }
-                        try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT COUNT(*) FROM borrowTable WHERE borrowStatus = 0 AND dueDate < CURRENT_DATE()")) {
+                        try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT COUNT(*) FROM borrowTable WHERE borrowStates = 0 AND dueDate < CURRENT_DATE()")) {
                             try (java.sql.ResultSet rs = ps.executeQuery()) { if (rs.next()) overdue = rs.getInt(1); }
                         }
                         sendJson(ex,200, Map.of("code",0, "data", Map.of("totalBooks", totalBooks, "totalReaders", totalReaders, "borrowedNow", borrowedNow, "overdue", overdue)));

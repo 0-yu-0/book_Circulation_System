@@ -27,16 +27,18 @@
           :loading="loading" 
           :total="total"
           :page="page"
+          :page-size="pageSize"
+          :show-selection="false"
           @page-change="handlePageChange"
+          @size-change="handleSizeChange"
         >
           <template #columns>
             <el-table-column prop="borrowId" label="借阅编号" />
-            <el-table-column prop="readerName" label="读者姓名" />
             <el-table-column prop="bookTitle" label="书名" />
-            <el-table-column prop="borrowDate" label="借出日期" />
+            <el-table-column prop="readerName" label="读者姓名" />
             <el-table-column prop="dueDate" label="应还日期" />
             <el-table-column prop="overdueDays" label="逾期天数" />
-            <el-table-column prop="fine" label="罚款金额" />
+            <el-table-column prop="category" label="分类" />
           </template>
         </data-table>
       </el-card>
@@ -76,8 +78,23 @@ async function loadOverdueRecords() {
     
     const res = await statisticsApi.getOverdueBooks(params)
     if (res && res.code === 0) {
-      overdueRecords.value = res.data.items || res.data
-      total.value = res.data.total || 0
+      // 修复：正确处理API响应数据结构
+      const data = res.data || {}
+      let items = data.items || []
+      
+      // 计算逾期天数
+      items = items.map(item => {
+        const dueDate = new Date(item.dueDate)
+        const today = new Date()
+        const overdueDays = Math.ceil((today - dueDate) / (1000 * 60 * 60 * 24))
+        return {
+          ...item,
+          overdueDays: overdueDays > 0 ? overdueDays : 0
+        }
+      })
+      
+      overdueRecords.value = items
+      total.value = data.total || items.length || 0
     } else {
       ElMessage.error(res?.message || '获取逾期记录失败')
     }
@@ -95,6 +112,12 @@ function search() {
 
 function handlePageChange(newPage) {
   page.value = newPage
+  loadOverdueRecords()
+}
+
+function handleSizeChange(size) {
+  pageSize.value = size
+  page.value = 1
   loadOverdueRecords()
 }
 </script>

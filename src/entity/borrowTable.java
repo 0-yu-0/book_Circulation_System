@@ -15,10 +15,17 @@ public class borrowTable {
     private LocalDate borrowDate;    // 借阅日期
     private LocalDate dueDate;       // 应还日期
     private int borrowStates;      // 借阅状态（如：已借出、已归还、逾期未还）
+    
+    // Added fields for book and reader details
+    private String bookTitle;       // 书名
+    private String readerName;      // 读者姓名
+    private String category;        // 分类
+    
     /**
      * 无参构造函数
      */
     public borrowTable() {}
+    
     /**
      * 有参构造函数
      * @param borrowId
@@ -37,6 +44,7 @@ public class borrowTable {
         this.dueDate = dueDate;
         this.borrowStates = borrowStates;
     }    
+    
     /**
      * Getter和Setter方法
      * @return
@@ -78,4 +86,23 @@ public class borrowTable {
         this.borrowStates = borrowStates;
     }
     
+    // Getters and setters for book and reader details
+    public String getBookTitle() {
+        return bookTitle;
+    }
+    public void setBookTitle(String bookTitle) {
+        this.bookTitle = bookTitle;
+    }
+    public String getReaderName() {
+        return readerName;
+    }
+    public void setReaderName(String readerName) {
+        this.readerName = readerName;
+    }
+    public String getCategory() {
+        return category;
+    }
+    public void setCategory(String category) {
+        this.category = category;
+    }
 }

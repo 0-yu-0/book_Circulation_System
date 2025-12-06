@@ -97,6 +97,19 @@ public class bookService {
 	}
 
 	public static boolean deleteBook(String bookId) throws SQLException {
+		// First check if book has any borrowing records
+		String checkSql = "SELECT COUNT(*) FROM borrowTable WHERE bookId = ?";
+		try (Connection c = db.getConnection(); PreparedStatement checkPs = c.prepareStatement(checkSql)) {
+			checkPs.setString(1, bookId);
+			try (ResultSet rs = checkPs.executeQuery()) {
+				if (rs.next() && rs.getInt(1) > 0) {
+					// Book has borrowing records, cannot delete
+					throw new SQLException("Cannot delete book with borrowing records");
+				}
+			}
+		}
+		
+		// If no borrowing records, proceed with deletion
 		String sql = "DELETE FROM bookInformation WHERE bookId = ?";
 		try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
 			ps.setString(1, bookId);
@@ -142,6 +155,41 @@ public class bookService {
 			}
 		}
 		return list;
+	}
+
+	/**
+	 * 统计可借图书总数（用于分页）
+	 */
+	public static int countVacantBooks() throws SQLException {
+		String sql = "SELECT COUNT(*) FROM bookInformation WHERE bookAvailableCopies > 0";
+		try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+			try (ResultSet rs = ps.executeQuery()) {
+				if (rs.next()) return rs.getInt(1);
+			}
+		}
+		return 0;
+	}
+
+	/**
+	 * Return total count matching filters for pagination
+	 */
+	public static int countBooks(String search, String author, String category) throws SQLException {
+		StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM bookInformation WHERE 1=1");
+		if (search != null && !search.isBlank()) sql.append(" AND (bookName LIKE ? OR isbn LIKE ?)");
+		if (author != null && !author.isBlank()) sql.append(" AND bookAuthor = ?");
+		if (category != null && !category.isBlank()) sql.append(" AND bookCategory = ?");
+		try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql.toString())) {
+			int idx = 1;
+			if (search != null && !search.isBlank()) {
+				String s = "%" + search + "%";
+				ps.setString(idx++, s);
+				ps.setString(idx++, s);
+			}
+			if (author != null && !author.isBlank()) ps.setString(idx++, author);
+			if (category != null && !category.isBlank()) ps.setString(idx++, category);
+			try (ResultSet rs = ps.executeQuery()) { if (rs.next()) return rs.getInt(1); }
+		}
+		return 0;
 	}
 
 	private static bookInformation mapRowToBook(ResultSet rs) throws SQLException {

@@ -1,103 +1,100 @@
 <template>
   <el-container class="layout-container">
-    <el-aside 
-      :width="collapsed ? '64px' : '200px'" 
-      class="sidebar"
-      :class="{ 'sidebar-collapsed': collapsed, 'sidebar-expanded': !collapsed }"
-    >
-      <div class="logo-container">
-        <div class="logo-icon">
-          <el-icon size="24"><Collection /></el-icon>
-        </div>
-        <div class="logo-text" v-show="!collapsed">
-          <div class="logo-title">图书借还</div>
-          <div class="logo-subtitle">管理系统</div>
+    <el-aside :width="isCollapse ? '64px' : '200px'" class="sidebar">
+      <div class="logo" @click="toggleCollapse">
+        <el-icon v-if="isCollapse" size="24" class="logo-icon"><Collection /></el-icon>
+        <div v-else class="logo-text-wrapper">
+          <div class="logo-main">图书借还</div>
+          <div class="logo-sub">管理系统</div>
         </div>
       </div>
-      <el-menu 
-        :default-active="$route.path" 
+      <el-menu
+        :default-active="activeMenu"
+        :collapse="isCollapse"
+        background-color="#f5f5f5"
+        text-color="#333333"
+        active-text-color="#409eff"
         router
-        :collapse="collapsed"
-        class="menu"
-        :unique-opened="true"
+        class="sidebar-menu"
       >
-        <el-menu-item index="/">
+        <el-menu-item index="/dashboard">
           <el-icon><House /></el-icon>
-          <span v-show="!collapsed">概览</span>
+          <template #title>首页</template>
         </el-menu-item>
-        <el-menu-item index="/books">
-          <el-icon><Collection /></el-icon>
-          <span v-show="!collapsed">图书管理</span>
-        </el-menu-item>
-        <el-menu-item index="/readers">
-          <el-icon><User /></el-icon>
-          <span v-show="!collapsed">读者管理</span>
-        </el-menu-item>
-        <el-menu-item index="/borrow">
-          <el-icon><Reading /></el-icon>
-          <span v-show="!collapsed">借书</span>
-        </el-menu-item>
-        <el-menu-item index="/return">
-          <el-icon><DocumentChecked /></el-icon>
-          <span v-show="!collapsed">还书</span>
-        </el-menu-item>
-        <el-menu-item index="/borrow-history">
-          <el-icon><Tickets /></el-icon>
-          <span v-show="!collapsed">借阅历史</span>
-        </el-menu-item>
-        <el-menu-item index="/overdue-records">
-          <el-icon><Warning /></el-icon>
-          <span v-show="!collapsed">逾期记录</span>
-        </el-menu-item>
-        <el-menu-item index="/statistics">
-          <el-icon><DataAnalysis /></el-icon>
-          <span v-show="!collapsed">统计</span>
-        </el-menu-item>
+        <el-sub-menu index="/books">
+          <template #title>
+            <el-icon><Collection /></el-icon>
+            <span>图书管理</span>
+          </template>
+          <el-menu-item index="/books">
+            <el-icon><CollectionTag /></el-icon>
+            <template #title>图书列表</template>
+          </el-menu-item>
+          <el-menu-item index="/statistics">
+            <el-icon><DataAnalysis /></el-icon>
+            <template #title>统计</template>
+          </el-menu-item>
+        </el-sub-menu>
+        <el-sub-menu index="/readers">
+          <template #title>
+            <el-icon><User /></el-icon>
+            <span>读者管理</span>
+          </template>
+          <el-menu-item index="/readers">
+            <el-icon><User /></el-icon>
+            <template #title>读者列表</template>
+          </el-menu-item>
+        </el-sub-menu>
+        <el-sub-menu index="/transactions">
+          <template #title>
+            <el-icon><Document /></el-icon>
+            <span>借还管理</span>
+          </template>
+          <el-menu-item index="/borrow">
+            <el-icon><CreditCard /></el-icon>
+            <template #title>借书</template>
+          </el-menu-item>
+          <el-menu-item index="/return">
+            <el-icon><SoldOut /></el-icon>
+            <template #title>还书</template>
+          </el-menu-item>
+          <el-menu-item index="/borrow-history">
+            <el-icon><Tickets /></el-icon>
+            <template #title>借阅历史</template>
+          </el-menu-item>
+          <el-menu-item index="/overdue-records">
+            <el-icon><Warning /></el-icon>
+            <template #title>逾期记录</template>
+          </el-menu-item>
+        </el-sub-menu>
         <el-menu-item index="/settings">
           <el-icon><Setting /></el-icon>
-          <span v-show="!collapsed">设置</span>
+          <template #title>系统设置</template>
         </el-menu-item>
       </el-menu>
     </el-aside>
+
     <el-container>
       <el-header class="header">
         <div class="header-left">
-          <el-button 
-            class="toggle-button" 
-            @click="toggleSidebar" 
-            circle 
-          >
-            <el-icon v-if="collapsed"><ArrowRight /></el-icon>
-            <el-icon v-else><ArrowLeft /></el-icon>
-          </el-button>
-          <!-- 添加面包屑导航 -->
-          <el-breadcrumb v-show="!collapsed" separator="/" class="breadcrumb">
-<!--            <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>-->
-            <el-breadcrumb-item>{{ currentPageTitle }}</el-breadcrumb-item>
-          </el-breadcrumb>
+          <el-icon @click="toggleCollapse" class="menu-toggle"><Expand /></el-icon>
         </div>
         <div class="header-right">
-          <!-- 用户头像替换文本退出按钮 -->
-          <el-dropdown @command="handleCommand">
-            <span class="user-avatar">
+          <el-dropdown @command="handleUserCommand">
+            <div class="user-info">
               <el-avatar :icon="UserFilled" size="small" />
-              <span v-show="!collapsed" class="user-name">管理员</span>
-            </span>
+              <span class="username">管理员</span>
+              <el-icon><ArrowDown /></el-icon>
+            </div>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="settings">
-                  <el-icon><Setting /></el-icon>
-                  系统设置
-                </el-dropdown-item>
-                <el-dropdown-item command="logout">
-                  <el-icon><SwitchButton /></el-icon>
-                  退出登录
-                </el-dropdown-item>
+                <el-dropdown-item command="logout">退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
         </div>
       </el-header>
+
       <el-main class="main-content">
         <slot />
       </el-main>
@@ -106,82 +103,50 @@
 </template>
 
 <script setup>
-import { useUIStore } from '../stores/ui'
+import { ref, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
 import {
   House,
   Collection,
   User,
-  Reading,
-  DocumentChecked,
+  Document,
   DataAnalysis,
-  UserFilled,
   Setting,
+  Expand,
+  ArrowDown,
+  UserFilled,
+  CollectionTag,
+  CreditCard,
+  SoldOut,
   Tickets,
-  Warning,
-  SwitchButton,
-  ArrowLeft,
-  ArrowRight
+  Warning
 } from '@element-plus/icons-vue'
 
-const ui = useUIStore()
-const auth = useAuthStore()
-const router = useRouter()
 const route = useRoute()
-const collapsed = ref(ui.sidebarCollapsed)
+const router = useRouter()
+const auth = useAuthStore()
+const isCollapse = ref(false)
 
-// 计算当前页面标题
-const currentPageTitle = computed(() => {
-  const routeMap = {
-    '/': '概览',
-    '/books': '图书管理',
-    '/readers': '读者管理',
-    '/borrow': '借书',
-    '/return': '还书',
-    '/borrow-history': '借阅历史',
-    '/overdue-records': '逾期记录',
-    '/statistics': '统计',
-    '/settings': '设置'
+const activeMenu = computed(() => {
+  const { meta, path } = route
+  // if set path, the sidebar will highlight the path you set
+  if (meta.activeMenu) {
+    return meta.activeMenu
   }
-  return routeMap[route.path] || '未知页面'
+  return path
 })
 
-function toggleSidebar() {
-  collapsed.value = !collapsed.value
-  ui.setSidebarCollapsed(collapsed.value)
+function toggleCollapse() {
+  isCollapse.value = !isCollapse.value
 }
 
-function handleCommand(command) {
+function handleUserCommand(command) {
   if (command === 'logout') {
-    auth.logout().then(() => {
-      router.push('/login')
-    })
-  } else if (command === 'settings') {
-    router.push('/settings')
+    auth.logout()
+    router.push('/login')
   }
 }
-
-// Handle window resize for responsive sidebar
-onMounted(() => {
-  const handleResize = () => {
-    if (window.innerWidth < 768) {
-      collapsed.value = true
-      ui.setSidebarCollapsed(true)
-    } else {
-      collapsed.value = ui.sidebarCollapsed
-    }
-  }
-
-  handleResize()
-  window.addEventListener('resize', handleResize)
-  
-  // Store cleanup function
-  onBeforeUnmount(() => {
-    window.removeEventListener('resize', handleResize)
-  })
-})
 </script>
 
 <style scoped>
@@ -190,147 +155,85 @@ onMounted(() => {
 }
 
 .sidebar {
+  background-color: #f5f5f5;
   transition: width 0.3s ease;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
-  overflow-y: auto;
-  background-color: #ffffff;
+  overflow-x: hidden;
+  border-right: 1px solid #e4e7ed;
 }
 
-.sidebar-collapsed {
-  width: 64px;
-}
-
-.sidebar-expanded {
-  width: 200px;
-}
-
-.logo-container {
-  display: flex;
-  align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid #e6e6e6;
-  background: linear-gradient(90deg, #f0f8ff 0%, #e6f7ff 100%);
-  transition: all 0.3s ease;
-}
-
-.logo-container:hover {
-  background: linear-gradient(90deg, #e6f7ff 0%, #f0f8ff 100%);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.logo-icon {
-  width: 36px;
-  height: 36px;
-  background: linear-gradient(135deg, #409EFF 0%, #1890FF 100%);
-  border-radius: 8px;
+.logo {
+  height: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  margin-right: 12px;
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+  background-color: #ffffff;
+  color: #409eff;
+  cursor: pointer;
   transition: all 0.3s ease;
+  overflow: hidden;
+  border-bottom: 1px solid #e4e7ed;
 }
 
-.logo-icon:hover {
-  transform: scale(1.05);
-  box-shadow: 0 6px 16px rgba(64, 158, 255, 0.4);
+.logo-icon {
+  color: #409eff;
 }
 
-.logo-text {
-  white-space: nowrap;
-  transition: all 0.3s ease;
+.logo-text-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
-.logo-title {
+.logo-main {
+  font-size: 18px;
   font-weight: bold;
-  font-size: 16px;
-  color: #1890FF;
   line-height: 1.2;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-.logo-subtitle {
+.logo-sub {
   font-size: 12px;
-  color: #666;
+  font-weight: normal;
   line-height: 1.2;
+  opacity: 0.8;
 }
 
-.menu {
-  border-right: none !important;
-  height: calc(100% - 77px);
+.sidebar-menu {
+  border-right: none;
+}
+
+.sidebar-menu:not(.el-menu--collapse) {
+  width: 200px;
 }
 
 .header {
+  background-color: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 16px;
-  border-bottom: 1px solid #e6e6e6;
-  background-color: #ffffff;
+  padding: 0 20px;
 }
 
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+.menu-toggle {
+  cursor: pointer;
+  font-size: 20px;
 }
 
-.breadcrumb {
-  margin-left: 8px;
-}
-
-.page-title {
-  margin: 0;
-  font-size: 18px;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-}
-
-.user-avatar {
+.user-info {
   display: flex;
   align-items: center;
   cursor: pointer;
   gap: 8px;
 }
 
-.user-name {
+.username {
   font-size: 14px;
 }
 
 .main-content {
-  padding: 16px;
-  background-color: #f5f7fa;
+  background-color: #f5f5f5;
+  padding: 20px;
   overflow-y: auto;
-}
-
-/* Responsive styles */
-@media (max-width: 768px) {
-  .sidebar {
-    position: fixed;
-    z-index: 1000;
-    height: 100vh;
-  }
-  
-  .page-title {
-    font-size: 16px;
-  }
-  
-  .header {
-    padding: 0 12px;
-  }
-}
-
-@media (max-width: 480px) {
-  .header {
-    padding: 0 8px;
-  }
-  
-  .toggle-button {
-    padding: 8px;
-  }
 }
 </style>

@@ -9,6 +9,13 @@
             "name": "Server",
             "request": "launch",
             "mainClass": "Server",
+            "projectName": "book-circulation-system"
+        },
+        {
+            "type": "java",
+            "name": "Server",
+            "request": "launch",
+            "mainClass": "Server",
             "projectName": "book_Circulation_System_97481573"
         },
         {

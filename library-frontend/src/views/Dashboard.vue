@@ -48,10 +48,11 @@
 
 <script setup>
 import Layout from '../components/Layout.vue'
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, markRaw } from 'vue'
 import * as api from '../api/statistics'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
+import { initECharts } from '../utils/echartsHelper'
 import {
   Collection,
   User,
@@ -64,10 +65,10 @@ import {
 } from '@element-plus/icons-vue'
 
 const cards = ref([
-  { title:'总图书', value:0, icon: Collection, iconClass: 'icon-blue' },
-  { title:'总读者', value:0, icon: User, iconClass: 'icon-green' },
-  { title:'在借', value:0, icon: Reading, iconClass: 'icon-orange' },
-  { title:'今日借书', value:0, icon: Document, iconClass: 'icon-red' }
+  { title:'总图书', value:0, icon: markRaw(Collection), iconClass: 'icon-blue' },
+  { title:'总读者', value:0, icon: markRaw(User), iconClass: 'icon-green' },
+  { title:'在借', value:0, icon: markRaw(Reading), iconClass: 'icon-orange' },
+  { title:'今日借书', value:0, icon: markRaw(Document), iconClass: 'icon-red' }
 ])
 const popular = ref([])
 const loading = ref(false)
@@ -75,6 +76,22 @@ const chartContainer = ref(null)
 const pieChartContainer = ref(null)
 let barChart = null
 let pieChart = null
+let barChartDispose = null
+let pieChartDispose = null
+
+// Helper: normalize title extraction from various backend shapes
+function getBookTitle(item) {
+  if (!item) return 'Unknown'
+  return (
+    item.title ||
+    item.bookTitle ||
+    item.book_title ||
+    item.bookName ||
+    item.name ||
+    (item.book && (item.book.title || item.book.name)) ||
+    'Unknown'
+  )
+}
 
 async function load(){
   loading.value = true
@@ -93,8 +110,10 @@ async function load(){
     const p = await api.getPopularBooks(8)
     if (p && p.code===0) {
       popular.value = p.data
-      // Render charts after both data loaded
+      // Ensure skeleton is hidden before rendering charts so containers have size
+      loading.value = false
       await nextTick()
+      // Render charts after both data loaded and DOM updated
       renderCharts(popular.value)
     } else {
       ElMessage.error(p?.message || '获取热门图书失败')
@@ -108,86 +127,72 @@ async function load(){
 }
 
 function renderCharts(data) {
-  // Destroy existing charts if they exist
-  if (barChart) barChart.dispose()
-  if (pieChart) pieChart.dispose()
-  
+  // Dispose previous charts if exist
+  barChartDispose && barChartDispose()
+  pieChartDispose && pieChartDispose()
+
   // Bar chart for popular books
   if (chartContainer.value) {
-    // 确保容器已正确渲染
-    setTimeout(() => {
-      if (chartContainer.value && chartContainer.value.clientWidth > 0) {
-        barChart = echarts.init(chartContainer.value)
-        const option = {
-          title: {
-            text: '热门图书借阅排行',
-            left: 'center'
-          },
-          tooltip: {},
-          xAxis: {
-            type: 'category',
-            data: data.map(item => item.title || item.bookTitle || 'Unknown')
-          },
-          yAxis: {
-            type: 'value'
-          },
-          series: [{
-            type: 'bar',
-            data: data.map(item => item.borrowCount || 0),
-            itemStyle: {
-              color: '#409EFF'
+    initECharts(chartContainer.value, ({ chart, charLimit }) => {
+      const titles = data.map(item => getBookTitle(item))
+      const option = {
+        title: { text: '热门图书借阅排行', left: 'center' },
+        tooltip: {
+          trigger: 'axis',
+          axisPointer: { type: 'shadow' },
+          formatter: function(params) {
+            if (Array.isArray(params) && params[0]) {
+              const p = params[0]
+              return `${p.name}<br/>${p.seriesName}: ${p.value}`
             }
-          }]
-        }
-        barChart.setOption(option)
-      } else {
-        console.warn('Chart container not ready')
+            return params.name
+          }
+        },
+        grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
+        xAxis: {
+          type: 'category',
+          data: titles,
+          axisTick: { alignWithLabel: true },
+          axisLabel: {
+            interval: 0,
+            rotate: 30,
+            formatter: function (value) {
+              if (!value) return ''
+              return value.length > charLimit ? value.slice(0, charLimit) + '...' : value
+            }
+          }
+        },
+        yAxis: { type: 'value' },
+        series: [{ type: 'bar', data: data.map(item => item.borrowCount || 0), itemStyle: { color: '#409EFF' } }]
       }
-    }, 150) // 增加延时确保DOM渲染完成
+      return option
+    }, { waitOptions: { interval: 100, timeout: 5000 }, labelsCount: data.length })
+      .then(({ chart, dispose }) => { /* chart is ready */ barChart = chart; barChartDispose = dispose })
+      .catch(err => { console.warn('Failed to init bar chart:', err.message) })
   }
-  
+
   // Pie chart for borrowing statistics
   if (pieChartContainer.value) {
-    // 确保容器已正确渲染
-    setTimeout(() => {
-      if (pieChartContainer.value && pieChartContainer.value.clientWidth > 0) {
-        pieChart = echarts.init(pieChartContainer.value)
-        const inLibraryCount = cards.value[0].value - cards.value[2].value;
-        const option = {
-          title: {
-            text: '借阅状态分布',
-            left: 'center'
-          },
-          tooltip: {
-            trigger: 'item'
-          },
-          legend: {
-            orient: 'vertical',
-            left: 'left'
-          },
-          series: [
-            {
-              type: 'pie',
-              radius: '50%',
-              data: [
-                { value: Math.max(0, cards.value[2].value), name: '在借图书' },
-                { value: Math.max(0, inLibraryCount), name: '在馆图书' }
-              ],
-              emphasis: {
-                itemStyle: {
-                  shadowBlur: 10,
-                  shadowOffsetX: 0,
-                  shadowColor: 'rgba(0, 0, 0, 0.5)'
-                }
-              }
-            }
-          ]
-        }
-        pieChart.setOption(option)
-      } else {
-        console.warn('Pie chart container not ready')
+    initECharts(pieChartContainer.value, ({ chart }) => {
+      const inLibraryCount = cards.value[0].value - cards.value[2].value
+      const option = {
+        title: { text: '借阅状态分布', left: 'center' },
+        tooltip: { trigger: 'item' },
+        legend: { orient: 'vertical', left: 'left' },
+        series: [
+          {
+            type: 'pie', radius: '50%', data: [
+              { value: Math.max(0, cards.value[2].value), name: '在借图书' },
+              { value: Math.max(0, inLibraryCount), name: '在馆图书' }
+            ],
+            emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,0.5)' } }
+          }
+        ]
       }
-    }, 150) // 增加延时确保DOM渲染完成
+      return option
+    }, { waitOptions: { interval: 100, timeout: 3000 } })
+      .then(({ chart, dispose }) => { pieChart = chart; pieChartDispose = dispose })
+      .catch(err => { console.warn('Failed to init pie chart:', err.message) })
   }
 }
 

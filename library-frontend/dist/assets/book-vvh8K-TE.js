@@ -1,1 +1,0 @@
-import{i as e}from"./index-C-RrEStG.js";function n(o){return e.get("/books",{params:o})}function r(o){return e.get(`/books/${o}`)}function s(o){return e.delete(`/books/${o}`)}export{s as d,n as f,r as g};

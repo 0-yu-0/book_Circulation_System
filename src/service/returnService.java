@@ -107,6 +107,95 @@ public class returnService {
         return null;
     }
 
+    /**
+     * Batch return processing: accepts an array of borrowIds and processes each within a single transaction.
+     * Returns a simple summary array of created returnIds and fines per borrow.
+     */
+    public static java.util.List<java.util.Map<String, Object>> createReturnBatch(java.util.List<Long> borrowIds, LocalDate returnDate) throws SQLException {
+        try (Connection conn = db.getConnection()) {
+            try {
+                conn.setAutoCommit(false);
+                java.util.List<java.util.Map<String, Object>> results = new java.util.ArrayList<>();
+                for (Long borrowId : borrowIds) {
+                    String selectBorrow = "SELECT borrowId, bookId, readerId, dueDate, borrowStatus FROM borrowTable WHERE borrowId = ? FOR UPDATE";
+                    String insertReturn = "INSERT INTO returnTable (borrowId, returnDate, overDays, fine) VALUES (?,?,?,?)";
+                    String updateBorrow = "UPDATE borrowTable SET borrowStatus = ? WHERE borrowId = ?";
+                    String updateBook = "UPDATE bookInformation SET bookAvailableCopies = bookAvailableCopies + 1 WHERE bookId = ?";
+                    String updateReader = "UPDATE readerInformation SET nowBorrowNumber = GREATEST(0, nowBorrowNumber - 1) WHERE readerId = ?";
+
+                    String bookId;
+                    String readerId;
+                    LocalDate dueDate;
+                    int status;
+
+                    try (PreparedStatement ps = conn.prepareStatement(selectBorrow)) {
+                        ps.setLong(1, borrowId);
+                        try (ResultSet rs = ps.executeQuery()) {
+                            if (!rs.next()) throw new SQLException("Borrow record not found: " + borrowId);
+                            status = rs.getInt("borrowStatus");
+                            bookId = rs.getString("bookId");
+                            readerId = rs.getString("readerId");
+                            java.sql.Date dd = rs.getDate("dueDate");
+                            if (dd != null) dueDate = dd.toLocalDate(); else dueDate = null;
+                        }
+                    }
+
+                    if (status != 0) throw new SQLException("Borrow record is not in borrowed state: " + status);
+
+                    long overDays = 0;
+                    if (dueDate != null && returnDate != null) {
+                        overDays = java.time.temporal.ChronoUnit.DAYS.between(dueDate, returnDate);
+                        if (overDays < 0) overDays = 0;
+                    }
+                    double fine = overDays * 1.0;
+
+                    long returnId;
+                    try (PreparedStatement ir = conn.prepareStatement(insertReturn, Statement.RETURN_GENERATED_KEYS)) {
+                        ir.setLong(1, borrowId);
+                        ir.setDate(2, java.sql.Date.valueOf(returnDate));
+                        ir.setLong(3, overDays);
+                        ir.setDouble(4, fine);
+                        int r = ir.executeUpdate();
+                        if (r != 1) throw new SQLException("Insert return failed");
+                        try (ResultSet gk = ir.getGeneratedKeys()) {
+                            if (gk.next()) returnId = gk.getLong(1);
+                            else throw new SQLException("Failed to obtain generated returnId");
+                        }
+                    }
+
+                    try (PreparedStatement ub = conn.prepareStatement(updateBorrow)) {
+                        ub.setInt(1, 1);
+                        ub.setLong(2, borrowId);
+                        ub.executeUpdate();
+                    }
+
+                    try (PreparedStatement ubk = conn.prepareStatement(updateBook)) {
+                        ubk.setString(1, bookId);
+                        ubk.executeUpdate();
+                    }
+
+                    try (PreparedStatement ur = conn.prepareStatement(updateReader)) {
+                        ur.setString(1, readerId);
+                        ur.executeUpdate();
+                    }
+
+                    java.util.Map<String, Object> item = new java.util.HashMap<>();
+                    item.put("borrowId", borrowId);
+                    item.put("returnId", returnId);
+                    item.put("fine", fine);
+                    results.add(item);
+                }
+                conn.commit();
+                return results;
+            } catch (SQLException ex) {
+                conn.rollback();
+                throw ex;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
+    }
+
     private static returnTable mapRowToReturn(ResultSet rs) throws SQLException {
         returnTable r = new returnTable();
         r.setReturnId(String.valueOf(rs.getLong("returnId")));

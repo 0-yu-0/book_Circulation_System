@@ -62,7 +62,7 @@ public class readerService {
     }
 
     public static boolean createReader(readerInformation r) throws SQLException {
-        String sql = "INSERT INTO readerInformation (readerId, readerName, readerCardType, readerCardNumber, readerPhoneNumber, registerDate, readerStatus, totalBoorowNumber, nowBorrowNumber) VALUES (?,?,?,?,?,?,?,?,?)";
+        String sql = "INSERT INTO readerInformation (readerId, readerName, readerCardType, readerCardNumber, readerPhoneNumber, registerDate, readerStatus, totalBorrowNumber, nowBorrowNumber) VALUES (?,?,?,?,?,?,?,?,?)";
         try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, r.getReaderId());
             ps.setString(2, r.getReaderName());
@@ -79,7 +79,7 @@ public class readerService {
     }
 
     public static boolean updateReader(readerInformation r) throws SQLException {
-        String sql = "UPDATE readerInformation SET readerName=?, readerCardType=?, readerCardNumber=?, readerPhoneNumber=?, registerDate=?, readerStatus=?, totalBoorowNumber=?, nowBorrowNumber=? WHERE readerId=?";
+        String sql = "UPDATE readerInformation SET readerName=?, readerCardType=?, readerCardNumber=?, readerPhoneNumber=?, registerDate=?, readerStatus=?, totalBorrowNumber=?, nowBorrowNumber=? WHERE readerId=?";
         try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, r.getReaderName());
             ps.setString(2, r.getReaderCardType());
@@ -96,11 +96,42 @@ public class readerService {
     }
 
     public static boolean deleteReader(String readerId) throws SQLException {
+        // First check if reader has any borrowing records
+        String checkSql = "SELECT COUNT(*) FROM borrowTable WHERE readerId = ?";
+        try (Connection c = db.getConnection(); PreparedStatement checkPs = c.prepareStatement(checkSql)) {
+            checkPs.setString(1, readerId);
+            try (ResultSet rs = checkPs.executeQuery()) {
+                if (rs.next() && rs.getInt(1) > 0) {
+                    // Reader has borrowing records, cannot delete
+                    throw new SQLException("Cannot delete reader with borrowing records");
+                }
+            }
+        }
+        
+        // If no borrowing records, proceed with deletion
         String sql = "DELETE FROM readerInformation WHERE readerId = ?";
         try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, readerId);
             return ps.executeUpdate() == 1;
         }
+    }
+
+    /**
+     * Return total matching readers for pagination
+     */
+    public static int countReaders(String search) throws SQLException {
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM readerInformation WHERE 1=1");
+        if (search != null && !search.isBlank()) sql.append(" AND (readerName LIKE ? OR readerCardNumber LIKE ?)");
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql.toString())) {
+            int idx = 1;
+            if (search != null && !search.isBlank()) {
+                String s = "%" + search + "%";
+                ps.setString(idx++, s);
+                ps.setString(idx++, s);
+            }
+            try (ResultSet rs = ps.executeQuery()) { if (rs.next()) return rs.getInt(1); }
+        }
+        return 0;
     }
 
     private static readerInformation mapRowToReader(ResultSet rs) throws SQLException {
@@ -113,7 +144,7 @@ public class readerService {
         java.sql.Date rd = rs.getDate("registerDate");
         if (rd != null) r.setRegisterDate(rd.toLocalDate());
         r.setReaderStatus(rs.getInt("readerStatus"));
-        r.setTotalBorrowNumber(rs.getInt("totalBoorowNumber"));
+        r.setTotalBorrowNumber(rs.getInt("totalBorrowNumber"));
         r.setNowBorrowNumber(rs.getInt("nowBorrowNumber"));
         return r;
     }

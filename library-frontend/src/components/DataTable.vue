@@ -8,7 +8,7 @@
     highlight-current-row
     :height="tableHeight"
   >
-    <el-table-column type="selection" width="55" />
+    <el-table-column v-if="showSelection" type="selection" width="55" />
     <slot name="columns" />
   </el-table>
   <div class="pagination-container">
@@ -17,8 +17,10 @@
       :page-size="pageSize" 
       :current-page="page" 
       @current-change="$emit('page-change',$event)"
-      layout="total, prev, pager, next, jumper"
+      @size-change="$emit('size-change',$event)"
+      layout="total, sizes, prev, pager, next, jumper"
       background
+      :page-sizes="[5, 10, 20, 50, 100]"
     />
   </div>
 </template>
@@ -29,13 +31,13 @@ const props = defineProps({
   data: Array, 
   total: Number, 
   page: { type: Number, default: 1 }, 
-  pageSize: { type: Number, default: 20 }, 
+  pageSize: { type: Number, default: 10 }, 
   loading: Boolean,
-  fixedHeight: { type: Boolean, default: false }
+  fixedHeight: { type: Boolean, default: false },
+  showSelection: { type: Boolean, default: true }
 })
 
-const { data, total, page, pageSize, loading } = toRefs(props)
-defineEmits(['selection-change', 'page-change'])
+const { data, total, page, pageSize, loading, showSelection } = toRefs(props)
 
 // 表格高度计算
 const tableHeight = ref(null)
@@ -50,6 +52,8 @@ const handleResize = () => {
   }
 }
 
+defineEmits(['selection-change', 'page-change', 'size-change'])
+
 onMounted(() => {
   handleResize()
   window.addEventListener('resize', handleResize)
@@ -62,27 +66,9 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .pagination-container {
-  margin-top: 16px;
   display: flex;
   justify-content: flex-end;
-}
-
-/* 自定义分页样式 */
-:deep(.el-pagination) {
-  padding: 0;
-}
-
-:deep(.el-pagination .el-pager li.active) {
-  background-color: #409EFF;
-  color: white;
-}
-
-:deep(.el-pagination .btn-next),
-:deep(.el-pagination .btn-prev) {
-  border-radius: 4px;
-}
-
-:deep(.el-pagination .el-pager li) {
-  border-radius: 4px;
+  padding: 20px 0;
+  background-color: #fff;
 }
 </style>

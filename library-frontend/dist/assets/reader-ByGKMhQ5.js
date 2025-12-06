@@ -1,1 +1,0 @@
-import{i as r}from"./index-C-RrEStG.js";function n(e){return r.get("/readers",{params:e})}function d(e){return r.post("/readers",e)}function s(e,t){return r.put(`/readers/${e}`,t)}function u(e){return r.delete(`/readers/${e}`)}function c(e){return r.get(`/readers/byCard/${e}`)}export{d as c,u as d,n as f,c as g,s as u};

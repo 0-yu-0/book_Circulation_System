@@ -1,11 +1,35 @@
 import request from './request'
 
-export function fetchReaders(params){
-  return request.get('/readers', { params })
+function normalizeReader(r){
+  if (!r) return null
+  return {
+    id: r.readerId ?? r.id,
+    name: r.readerName ?? r.name,
+    idType: r.readerCardType ?? r.idType,
+    idNumber: r.readerCardNumber ?? r.idNumber,
+    phone: r.readerPhoneNumber ?? r.phone,
+    registerDate: r.registerDate ?? r.registerDate,
+    status: r.readerStatus ?? r.status ?? 0,
+    borrowLimit: r.borrowLimit ?? 5,
+    currentBorrowCount: r.currentBorrowCount ?? r.nowBorrowNumber ?? 0
+  }
 }
 
-export function getReader(id){
-  return request.get(`/readers/${id}`)
+export async function fetchReaders(params){
+  const res = await request.get('/readers', { params })
+  if (res && res.code === 0) {
+    const data = res.data || {}
+    const items = (data.items || []).map(normalizeReader)
+    return { code:0, data: { items, total: data.total ?? items.length } }
+  }
+  if (Array.isArray(res)) return { code:0, data: { items: res.map(normalizeReader), total: res.length } }
+  return { code:0, data: { items: [], total: 0 } }
+}
+
+export async function getReader(id){
+  const res = await request.get(`/readers/${id}`)
+  if (res && res.code===0) return { code:0, data: normalizeReader(res.data) }
+  return { code:0, data: normalizeReader(res) }
 }
 
 export function createReader(data){
@@ -20,7 +44,8 @@ export function deleteReader(id){
   return request.delete(`/readers/${id}`)
 }
 
-export function getReaderByCard(cardNumber){
-  return request.get(`/readers/byCard/${cardNumber}`)
+export async function getReaderByCard(cardNumber){
+  const res = await request.get(`/readers/byCard/${cardNumber}`)
+  if (res && res.code===0) return { code:0, data: normalizeReader(res.data) }
+  return { code:0, data: normalizeReader(res) }
 }
-

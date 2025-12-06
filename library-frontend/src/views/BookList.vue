@@ -2,7 +2,7 @@
   <layout>
     <template #default>
       <div class="toolbar">
-        <search-form @search="onSearch">
+        <search-form @search="onSearch" @reset="resetFilters">
           <template #fields>
             <el-form-item>
               <el-input v-model="filters.search" placeholder="书名/作者/ISBN" />
@@ -14,11 +14,23 @@
             <el-button>导入 CSV</el-button>
           </el-upload>
           <el-button @click="exportCsv">导出 CSV</el-button>
+          <el-button type="danger" :disabled="selected.length === 0" @click="batchDelete">批量删除</el-button>
           <el-button type="primary" @click="openCreate">新增图书</el-button>
         </div>
       </div>
-      <data-table :data="books" :total="total" @page-change="onPageChange" :loading="loading">
+      <data-table 
+        :data="books" 
+        :total="total" 
+        :page="page"
+        :page-size="pageSize"
+        :show-selection="false"
+        @page-change="onPageChange" 
+        @size-change="onSizeChange"
+        :loading="loading" 
+        @selection-change="onSelectionChange"
+      >
         <template #columns>
+          <el-table-column type="selection" width="55" />
           <el-table-column prop="title" label="书名" />
           <el-table-column prop="author" label="作者" />
           <el-table-column prop="publisher" label="出版社" />
@@ -29,15 +41,24 @@
             <template #default="{ row }">
               <el-button type="text" @click="edit(row)">编辑</el-button>
               <el-button type="text" @click="confirmDelete(row)">删除</el-button>
+              <el-button type="text" @click="viewDetail(row)">详情</el-button>
             </template>
           </el-table-column>
         </template>
       </data-table>
-      <el-dialog title="确认删除" :visible.sync="showConfirm">
+      <el-dialog title="确认删除" v-model="showConfirm">
         <span>确定要删除这本书吗？</span>
         <template #footer>
           <el-button @click="showConfirm = false">取 消</el-button>
           <el-button type="primary" @click="doDelete">确 定</el-button>
+        </template>
+      </el-dialog>
+      
+      <el-dialog title="批量删除确认" v-model="showBatchConfirm">
+        <span>确定要删除选中的 {{ selected.length }} 本书吗？</span>
+        <template #footer>
+          <el-button @click="showBatchConfirm = false">取 消</el-button>
+          <el-button type="primary" @click="doBatchDelete">确 定</el-button>
         </template>
       </el-dialog>
 
@@ -54,24 +75,36 @@ import BookForm from '../components/BookForm.vue'
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import * as api from '../api/book'
 import { exportToCsv, parseCsvFile } from '../utils/csv'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+
+const router = useRouter()
+const authStore = useAuthStore()
 
 const filters = ref({ search: '' })
 const books = ref([])
 const total = ref(0)
 const page = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(10)
 const showConfirm = ref(false)
+const showBatchConfirm = ref(false)
 const toDelete = ref(null)
 const showForm = ref(false)
 const editingBook = ref(null)
 const loading = ref(false)
+const selected = ref([])
 
 async function fetch(){
   loading.value = true
   try {
     const res = await api.fetchBooks({ page: page.value, size: pageSize.value, search: filters.value.search })
-    if (res && res.code===0){ books.value = res.data.items; total.value = res.data.total }
+    if (res && res.code===0){ 
+      books.value = res.data.items
+      total.value = res.data.total 
+    } else {
+      ElMessage.error(res?.message || '获取图书列表失败')
+    }
   } catch (error) {
     ElMessage.error('获取图书列表失败: ' + (error.message || error))
   } finally {
@@ -82,9 +115,20 @@ async function fetch(){
 onMounted(()=>{ fetch(); window.addEventListener('borrow-success', fetch) })
 function onSearch(){ page.value = 1; fetch() }
 function onPageChange(p){ page.value = p; fetch() }
+function onSizeChange(size){ pageSize.value = size; page.value = 1; fetch() }
+function onSelectionChange(list){ selected.value = list }
 function openCreate(){ editingBook.value = null; showForm.value = true }
 function edit(row){ editingBook.value = { ...row }; showForm.value = true }
-function confirmDelete(row){ toDelete.value = row; showConfirm.value = true }
+function viewDetail(row){ router.push(`/books/${row.id}`) }
+function confirmDelete(row){ 
+  if (row && row.id) {
+    toDelete.value = row; 
+    showConfirm.value = true
+  } else {
+    ElMessage.error('无效的图书信息')
+  }
+}
+
 async function doDelete(){ 
   if (!toDelete.value) return
   try {
@@ -97,7 +141,69 @@ async function doDelete(){
       ElMessage.error(res?.message || '删除失败')
     }
   } catch (error) {
-    ElMessage.error('删除失败: ' + (error.message || error))
+    console.error('删除图书失败:', error)
+    if (error.response && error.response.data && error.response.data.message) {
+      ElMessage.error('删除失败: ' + error.response.data.message)
+    } else {
+      ElMessage.error('删除失败: ' + (error.message || '网络错误'))
+    }
+  }
+}
+
+async function batchDelete() {
+  if (selected.value.length === 0) return
+  showBatchConfirm.value = true
+}
+
+async function doBatchDelete() {
+  if (!selected.value || selected.value.length === 0) {
+    ElMessage.error('未选择任何图书')
+    return
+  }
+  
+  try {
+    const deletePromises = selected.value.map(book => {
+      if (book && book.id) {
+        return api.deleteBook(book.id)
+      } else {
+        // 返回一个被拒绝的Promise，以便在结果中处理错误
+        return Promise.reject(new Error('无效的图书信息'))
+      }
+    })
+    
+    const results = await Promise.allSettled(deletePromises)
+    
+    let successCount = 0
+    let failCount = 0
+    
+    results.forEach(result => {
+      if (result.status === 'fulfilled') {
+        if (result.value && result.value.code === 0) {
+          successCount++
+        } else {
+          failCount++
+        }
+      } else {
+        failCount++
+      }
+    })
+    
+    if (failCount > 0) {
+      ElMessage.warning(`成功删除 ${successCount} 本书，${failCount} 本删除失败`)
+    } else {
+      ElMessage.success(`成功删除 ${successCount} 本书`)
+    }
+    
+    showBatchConfirm.value = false
+    selected.value = []
+    fetch()
+  } catch (error) {
+    console.error('批量删除失败:', error)
+    if (error.response && error.response.data && error.response.data.message) {
+      ElMessage.error('批量删除失败: ' + error.response.data.message)
+    } else {
+      ElMessage.error('批量删除失败: ' + (error.message || '网络错误'))
+    }
   }
 }
 
@@ -123,7 +229,7 @@ async function onSave(payload){
     if (res && res.code !== 0) {
       ElMessage.error(res.message || '操作失败')
     }
-  }catch(e){ 
+ }catch(e){ 
     console.error('保存图书失败:', e)
     ElMessage.error('保存失败: ' + (e.message || '未知错误')) 
   }
@@ -157,6 +263,13 @@ async function beforeUpload(file){
     fetch()
   }catch(e){ ElMessage.error('导入失败: ' + (e.message || e)) }
   return false
+}
+
+function resetFilters() {
+  filters.value.search = ''
+  page.value = 1
+  pageSize.value = 10
+  fetch()
 }
 
 onBeforeUnmount(()=>{ window.removeEventListener('borrow-success', fetch) })

@@ -1,8 +1,8 @@
 <template>
   <el-dialog 
-    :title="mode==='edit' ? '编辑读者' : '新增读者'" 
-    :model-value="visible"
-    @close="$emit('cancel')"
+    :title="mode === 'edit' ? '编辑读者' : '新增读者'" 
+    :model-value="visibleComputed"
+    @close="handleClose"
   >
     <el-form 
       :model="form" 
@@ -37,8 +37,8 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="$emit('cancel')" class="form-button">取消</el-button>
-      <el-button 
+      <el-button @click="cancel" class="form-button">取消</el-button>
+      <el-button
         type="primary" 
         @click="submit" 
         class="form-button"
@@ -51,12 +51,30 @@
 </template>
 
 <script setup>
-import { reactive, ref, watch } from 'vue'
-const props = defineProps({ visible: Boolean, reader: Object })
-const emit = defineEmits(['save','cancel'])
+import { reactive, ref, watch, computed } from 'vue'
+// accept both modelValue and visible for compatibility; accept reader or data as prop name
+const props = defineProps({ modelValue: Boolean, visible: Boolean, reader: Object, data: Object })
+const emit = defineEmits(['save','cancel','update:modelValue'])
 const formRef = ref(null)
 const submitting = ref(false)
-const mode = props.reader ? 'edit' : 'create'
+
+// computed visible to support v-model and legacy `visible` prop
+const visibleComputed = computed({
+  get() {
+    // prefer modelValue, fallback to visible
+    return typeof props.modelValue === 'boolean' ? props.modelValue : !!props.visible
+  },
+  set(v){
+    emit('update:modelValue', v)
+  }
+})
+
+// mode is dynamic based on incoming reader/data
+const mode = computed(() => {
+  const r = props.reader || props.data
+  return r && (r.id || r.id === 0) ? 'edit' : 'create'
+})
+
 const form = reactive({ id:null, name:'', idType:'身份证', idNumber:'', phone:'', borrowLimit:5 })
 
 const idRegex = /^(?:\d{15}|\d{17}[\dXx])$/
@@ -67,7 +85,7 @@ const rules = {
     { required:true, message:'请输入证件号', trigger:'blur' }, 
     { 
       validator: (rule, value, callback) => {
-        if (form.idType === '身份证' && !idRegex.test(value)) {
+        if (form.idType === '身份证' && value && !idRegex.test(value)) {
           callback(new Error('证件号格式错误'))
         } else {
           callback()
@@ -82,7 +100,22 @@ const rules = {
   ] 
 }
 
-watch(()=>props.reader, (r)=>{ if (r) Object.assign(form,r); else Object.assign(form,{ id:null, name:'', idType:'身份证', idNumber:'', phone:'', borrowLimit:5 }) })
+// keep form in sync when props.reader or props.data change
+watch(()=>props.reader || props.data, (r)=>{
+  if (r && Object.keys(r).length) { Object.assign(form, r) }
+  else { Object.assign(form,{ id:null, name:'', idType:'身份证', idNumber:'', phone:'', borrowLimit:5 }) }
+})
+
+function handleClose(){
+  // emit update for v-model and emit cancel
+  emit('update:modelValue', false)
+  emit('cancel')
+}
+
+function cancel(){
+  emit('update:modelValue', false)
+  emit('cancel')
+}
 
 function submit(){ 
   formRef.value.validate((valid)=>{ 
@@ -94,6 +127,8 @@ function submit(){
     setTimeout(() => {
       emit('save',{ ...form })
       submitting.value = false
+      // close dialog
+      emit('update:modelValue', false)
     }, 500)
   }) 
 }

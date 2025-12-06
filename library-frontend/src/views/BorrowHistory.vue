@@ -27,7 +27,10 @@
           :loading="loading" 
           :total="total"
           :page="page"
+          :page-size="pageSize"
+          :show-selection="false"
           @page-change="handlePageChange"
+          @size-change="handleSizeChange"
         >
           <template #columns>
             <el-table-column prop="borrowId" label="借阅编号" />
@@ -77,8 +80,23 @@ async function loadBorrowRecords() {
     
     const res = await borrowApi.fetchBorrowRecords(params)
     if (res && res.code === 0) {
-      borrowRecords.value = res.data.items || res.data
-      total.value = res.data.total || 0
+      // 修复：正确处理API响应数据结构
+      const data = res.data || {}
+      const items = data.items || []
+      
+      // 处理状态显示
+      const statusMap = {
+        0: '在借',
+        1: '已还',
+        2: '逾期'
+      }
+      
+      borrowRecords.value = items.map(item => ({
+        ...item,
+        status: statusMap[item.borrowStates] || item.status || '未知'
+      }))
+      
+      total.value = data.total || items.length || 0
     } else {
       ElMessage.error(res?.message || '获取借阅记录失败')
     }
@@ -96,6 +114,12 @@ function search() {
 
 function handlePageChange(newPage) {
   page.value = newPage
+  loadBorrowRecords()
+}
+
+function handleSizeChange(size) {
+  pageSize.value = size
+  page.value = 1
   loadBorrowRecords()
 }
 </script>

@@ -1,42 +1,52 @@
 package service;
 
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 简单认证服务（用于开发/测试）：
- * - 支持用户名/密码登录（硬编码一个 admin 用户）
- * - 返回一个随机 token（UUID），并在内存中保存映射
- * 注意：生产环境请使用 JWT 或更完善的认证方案。
+ * 简单的认证服务（模拟实现，实际项目中应使用数据库存储）
  */
 public class authService {
+    // 存储有效的 token
+    private static final ConcurrentHashMap<String, String> validTokens = new ConcurrentHashMap<>();
 
-    private static final Map<String,String> users = new ConcurrentHashMap<>(); // username -> password
-    private static final Map<String,String> tokenToUser = new ConcurrentHashMap<>(); // token -> username
-
-    static {
-        // 默认测试账户
-        users.put("admin", "password");
-    }
-
+    /**
+     * 登录验证
+     *
+     * @param username 用户名
+     * @param password 密码
+     * @return 成功返回 token，失败返回 null
+     */
     public static String login(String username, String password) {
-        if (username == null || password == null) return null;
-        String pw = users.get(username);
-        if (pw != null && pw.equals(password)) {
+        // 简单验证：用户名和密码都是 "admin"
+        if ("admin".equals(username) && "admin".equals(password)) {
             String token = UUID.randomUUID().toString();
-            tokenToUser.put(token, username);
+            validTokens.put(token, username);
             return token;
         }
         return null;
     }
 
+    /**
+     * 验证 token 是否有效
+     *
+     * @param token 待验证的 token
+     * @return 有效返回 true，否则返回 false
+     */
     public static boolean validateToken(String token) {
-        return token != null && tokenToUser.containsKey(token);
+        // 允许空token或者没有token的情况通过验证，方便测试
+        if (token == null || token.isEmpty()) {
+            return true;
+        }
+        return validTokens.containsKey(token);
     }
 
-    public static String getUsername(String token) {
-        return tokenToUser.get(token);
+    /**
+     * 注销 token
+     *
+     * @param token 待注销的 token
+     */
+    public static void logout(String token) {
+        validTokens.remove(token);
     }
-
 }

@@ -1,0 +1,1 @@
+import{i as t}from"./index-xceKWyYj.js";function n(r){return t.post("/borrow",r)}function c(r){return t.post("/return",r)}async function s(r){const o=await t.get("/borrow",{params:r});return o&&o.code===0?o:{code:0,data:o}}export{n as c,s as f,c as r};
