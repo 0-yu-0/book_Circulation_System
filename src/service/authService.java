@@ -19,7 +19,7 @@ public class authService {
      */
     public static String login(String username, String password) {
         // 简单验证：用户名和密码都是 "admin"
-        if ("admin".equals(username) && "admin".equals(password)) {
+        if ("123".equals(username) && "123".equals(password)) {
             String token = UUID.randomUUID().toString();
             validTokens.put(token, username);
             return token;

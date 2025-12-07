@@ -208,17 +208,23 @@ async function doBatchDelete() {
 }
 
 async function onSave(payload){
+  console.log('BookList: onSave called with payload:', payload);
+  console.log('BookList: payload.id:', payload.id);
   try{
     let res
     if (payload.id){
+      console.log('BookList: calling updateBook API');
       res = await api.updateBook(payload.id, payload)
+      console.log('BookList: updateBook response:', res);
       if (res && res.code===0){ 
         showForm.value=false
         fetch()
         ElMessage.success('保存成功') 
       }
     } else {
+      console.log('BookList: calling createBook API');
       res = await api.createBook(payload)
+      console.log('BookList: createBook response:', res);
       if (res && res.code===0){ 
         showForm.value=false
         fetch()

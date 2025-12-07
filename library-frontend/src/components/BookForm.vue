@@ -63,12 +63,12 @@
 </template>
 
 <script setup>
-import { reactive, watch, ref } from 'vue'
+import { reactive, watch, ref, computed } from 'vue'
 const props = defineProps({ visible: Boolean, book: Object })
 const emit = defineEmits(['save','cancel'])
 const formRef = ref(null)
 const submitting = ref(false)
-const mode = props.book ? 'edit' : 'create'
+const mode = computed(() => props.book ? 'edit' : 'create')
 
 const form = reactive({ id: null, title:'', author:'', isbn:'', publisher:'', publishDate:'', category:'', location:'', totalCopies:1 })
 
@@ -81,7 +81,28 @@ const rules = {
 }
 
 watch(()=>props.book, (b)=>{
-  if (b){ Object.assign(form, b) } else { Object.assign(form, { id:null, title:'', author:'', isbn:'', publisher:'', publishDate:'', category:'', location:'', totalCopies:1 }) }
+  console.log('BookForm: received book object:', b);
+  if (b){ 
+    // Map book object fields to form fields, handling both id and bookId
+    const mappedForm = {
+      id: b.id || b.bookId, // Handle both id and bookId fields
+      title: b.title || b.bookName,
+      author: b.author || b.bookAuthor,
+      isbn: b.isbn,
+      publisher: b.publisher || b.bookPublisher,
+      publishDate: b.publishDate || b.bookPubDate,
+      category: b.category || b.bookCategory,
+      location: b.location || b.bookLocation,
+      totalCopies: b.totalCopies || b.bookTotalCopies || 1
+    };
+    console.log('BookForm: mapped form data:', mappedForm);
+    Object.assign(form, mappedForm);
+  } else { 
+    console.log('BookForm: clearing form for create mode');
+    Object.assign(form, { id:null, title:'', author:'', isbn:'', publisher:'', publishDate:'', category:'', location:'', totalCopies:1 }) 
+  }
+  console.log('BookForm: current form.id:', form.id);
+  console.log('BookForm: current mode:', mode);
 })
 
 function submit(){
@@ -104,13 +125,29 @@ function submit(){
       bookPubDate: form.publishDate,
       bookCategory: form.category,
       bookLocation: form.location,
-      bookTotalCopies: form.totalCopies,
-      // Set default values for required fields
-      bookAvailableCopies: form.totalCopies || 1, // 默认可用册数等于总册数
-      bookPrice: 0, // 默认价格
-      borrowCount: 0 // 初始借阅次数
+      bookTotalCopies: form.totalCopies
     }
     
+    if (mode.value === 'edit') {
+      // Edit mode: use existing bookId and preserve existing values
+      if (form.id) {
+        backendForm.bookId = form.id;
+        // Also set the id field for BookList.vue to recognize edit mode
+        backendForm.id = form.id;
+      }
+      // For edit mode, use existing values from the book object
+      // Don't set default values as they will overwrite existing data
+    } else {
+      // Create mode: set default values for new books
+      backendForm.bookAvailableCopies = form.totalCopies || 1; // 默认可用册数等于总册数
+      backendForm.bookPrice = 0; // 默认价格
+      backendForm.borrowCount = 0; // 初始借阅次数
+    }
+
+    console.log('BookForm: submitting backendForm:', backendForm);
+    console.log('BookForm: backendForm.id:', backendForm.id);
+    console.log('BookForm: backendForm.bookId:', backendForm.bookId);
+
     // 模拟提交延迟，提供更好的用户体验
     setTimeout(() => {
       emit('save', backendForm)

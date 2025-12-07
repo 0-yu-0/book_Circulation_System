@@ -241,7 +241,22 @@ public class Server {
                         bookInformation b = bookService.getBookById(id);
                         if (b == null) { sendError(ex,404,1,"not found"); return; }
                         Map<String,Object> m = mapper.readValue(body, new TypeReference<Map<String,Object>>(){});
-                        if (m.get("isbn")!=null) b.setIsbn(String.valueOf(m.get("isbn")));
+                        
+                        // Check ISBN uniqueness before updating
+                        if (m.get("isbn") != null) {
+                            String newIsbn = String.valueOf(m.get("isbn"));
+                            // Only check if ISBN is being changed
+                            if (!newIsbn.equals(b.getIsbn())) {
+                                // Check if new ISBN already exists in other books
+                                bookInformation existingBook = bookService.getBookByIsbn(newIsbn);
+                                if (existingBook != null && !existingBook.getBookId().equals(id)) {
+                                    sendJson(ex, 400, Map.of("code", 400, "message", "ISBN already exists: " + newIsbn));
+                                    return;
+                                }
+                            }
+                            b.setIsbn(newIsbn);
+                        }
+                        
                         if (m.get("bookName")!=null) b.setBookName(String.valueOf(m.get("bookName")));
                         if (m.get("bookAuthor")!=null) b.setBookAuthor(String.valueOf(m.get("bookAuthor")));
                         if (m.get("bookPublisher")!=null) b.setBookPublisher(String.valueOf(m.get("bookPublisher")));

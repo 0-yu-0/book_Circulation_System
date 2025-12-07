@@ -102,8 +102,26 @@ const rules = {
 
 // keep form in sync when props.reader or props.data change
 watch(()=>props.reader || props.data, (r)=>{
-  if (r && Object.keys(r).length) { Object.assign(form, r) }
-  else { Object.assign(form,{ id:null, name:'', idType:'身份证', idNumber:'', phone:'', borrowLimit:5 }) }
+  console.log('ReaderForm: received reader object:', r);
+  if (r && Object.keys(r).length) { 
+    // Map reader object fields to form fields, handling both frontend and backend field names
+    const mappedForm = {
+      id: r.id || r.readerId, // Handle both id and readerId fields
+      name: r.name || r.readerName,
+      idType: r.idType || r.readerCardType,
+      idNumber: r.idNumber || r.readerCardNumber,
+      phone: r.phone || r.readerPhoneNumber,
+      borrowLimit: r.borrowLimit || 5
+    };
+    console.log('ReaderForm: mapped form data:', mappedForm);
+    Object.assign(form, mappedForm);
+  }
+  else { 
+    console.log('ReaderForm: clearing form for create mode');
+    Object.assign(form,{ id:null, name:'', idType:'身份证', idNumber:'', phone:'', borrowLimit:5 }) 
+  }
+  console.log('ReaderForm: current form.id:', form.id);
+  console.log('ReaderForm: current mode:', mode.value);
 })
 
 function handleClose(){
@@ -135,6 +153,24 @@ function submit(){
       nowBorrowNumber: 0, // 初始当前借书数为0
       registerDate: new Date().toISOString().split('T')[0] // 当前日期
     }
+    
+    if (mode.value === 'edit') {
+      // Edit mode: use existing readerId and preserve existing values
+      if (form.id) {
+        backendForm.readerId = form.id;
+        // Also set the id field for ReaderList.vue to recognize edit mode
+        backendForm.id = form.id;
+      }
+      // For edit mode, preserve existing values instead of setting defaults
+      // Remove default values that should not be overwritten
+      delete backendForm.totalBorrowNumber;
+      delete backendForm.nowBorrowNumber;
+      delete backendForm.registerDate;
+    }
+    
+    console.log('ReaderForm: submitting backendForm:', backendForm);
+    console.log('ReaderForm: backendForm.id:', backendForm.id);
+    console.log('ReaderForm: backendForm.readerId:', backendForm.readerId);
     
     // 模拟提交延迟，提供更好的用户体验
     setTimeout(() => {

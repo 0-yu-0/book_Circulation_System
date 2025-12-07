@@ -56,6 +56,20 @@ public class bookService {
 		return null;
 	}
 
+	/**
+	 * Get book by ISBN
+	 */
+	public static bookInformation getBookByIsbn(String isbn) throws SQLException {
+		String sql = "SELECT * FROM bookInformation WHERE isbn = ?";
+		try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+			ps.setString(1, isbn);
+			try (ResultSet rs = ps.executeQuery()) {
+				if (rs.next()) return mapRowToBook(rs);
+			}
+		}
+		return null;
+	}
+
 	public static boolean createBook(bookInformation b) throws SQLException {
 		String sql = "INSERT INTO bookInformation (bookId, isbn, bookName, bookAuthor, bookPublisher, bookPubDate, bookCategory, bookPrice, bookLocation, bookTotalCopies, bookAvailableCopies, borrowCount) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)";
 		try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
@@ -84,6 +98,22 @@ public class bookService {
 	}
 
 	public static boolean updateBook(bookInformation b) throws SQLException {
+		// First get the current book information to calculate stock changes
+		bookInformation currentBook = getBookById(b.getBookId());
+		if (currentBook == null) {
+			throw new SQLException("Book not found: " + b.getBookId());
+		}
+		
+		// Calculate the change in total copies
+		int totalCopiesChange = b.getBookTotalCopies() - currentBook.getBookTotalCopies();
+		
+		// Calculate new available copies based on the change
+		int newAvailableCopies = currentBook.getBookAvailableCopies() + totalCopiesChange;
+		// Ensure available copies don't go below 0
+		if (newAvailableCopies < 0) {
+			newAvailableCopies = 0;
+		}
+		
 		String sql = "UPDATE bookInformation SET isbn=?, bookName=?, bookAuthor=?, bookPublisher=?, bookPubDate=?, bookCategory=?, bookPrice=?, bookLocation=?, bookTotalCopies=?, bookAvailableCopies=?, borrowCount=? WHERE bookId=?";
 		try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
 			ps.setString(1, b.getIsbn());
@@ -96,7 +126,7 @@ public class bookService {
 			ps.setInt(7, b.getBookPrice());
 			ps.setString(8, b.getBookLocation());
 			ps.setInt(9, b.getBookTotalCopies());
-			ps.setInt(10, b.getBookAvailableCopies());
+			ps.setInt(10, newAvailableCopies); // Use calculated available copies
 			ps.setInt(11, b.getBorrowCount());
 			ps.setString(12, b.getBookId());
 			return ps.executeUpdate() == 1;
