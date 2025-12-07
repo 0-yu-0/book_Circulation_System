@@ -62,9 +62,21 @@ public class readerService {
     }
 
     public static boolean createReader(readerInformation r) throws SQLException {
+        // Validate required fields
+        if (r.getReaderName() == null || r.getReaderName().trim().isEmpty()) {
+            throw new SQLException("readerName cannot be empty");
+        }
+        
         String sql = "INSERT INTO readerInformation (readerId, readerName, readerCardType, readerCardNumber, readerPhoneNumber, registerDate, readerStatus, totalBorrowNumber, nowBorrowNumber) VALUES (?,?,?,?,?,?,?,?,?)";
         try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setString(1, r.getReaderId());
+            // Generate readerId if not provided
+            String readerId = r.getReaderId();
+            if (readerId == null || readerId.trim().isEmpty()) {
+                readerId = generateReaderId(r.getRegisterDate() != null ? r.getRegisterDate() : java.time.LocalDate.now());
+                r.setReaderId(readerId);
+            }
+            
+            ps.setString(1, readerId);
             ps.setString(2, r.getReaderName());
             ps.setString(3, r.getReaderCardType());
             ps.setString(4, r.getReaderCardNumber());
@@ -147,6 +159,34 @@ public class readerService {
         r.setTotalBorrowNumber(rs.getInt("totalBorrowNumber"));
         r.setNowBorrowNumber(rs.getInt("nowBorrowNumber"));
         return r;
+    }
+
+    /**
+     * Generate readerId in format: 1001, 1002, 1003... (simple incrementing numbers)
+     */
+    private static String generateReaderId(LocalDate registerDate) throws SQLException {
+        // Get the maximum readerId from the database
+        String maxIdSql = "SELECT MAX(readerId) FROM readerInformation";
+        try (Connection conn = db.getConnection(); 
+             PreparedStatement ps = conn.prepareStatement(maxIdSql)) {
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    String maxId = rs.getString(1);
+                    if (maxId != null) {
+                        // Parse the current maximum ID and increment by 1
+                        try {
+                            int currentMax = Integer.parseInt(maxId);
+                            return String.valueOf(currentMax + 1);
+                        } catch (NumberFormatException e) {
+                            // If parsing fails, start from 1001
+                            return "1001";
+                        }
+                    }
+                }
+            }
+        }
+        // Default starting point if no records exist
+        return "1001";
     }
 
 }

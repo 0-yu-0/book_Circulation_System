@@ -59,7 +59,14 @@ public class bookService {
 	public static boolean createBook(bookInformation b) throws SQLException {
 		String sql = "INSERT INTO bookInformation (bookId, isbn, bookName, bookAuthor, bookPublisher, bookPubDate, bookCategory, bookPrice, bookLocation, bookTotalCopies, bookAvailableCopies, borrowCount) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)";
 		try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
-			ps.setString(1, b.getBookId());
+			// Generate bookId if not provided
+			String bookId = b.getBookId();
+			if (bookId == null || bookId.trim().isEmpty()) {
+				bookId = generateBookId();
+				b.setBookId(bookId);
+			}
+			
+			ps.setString(1, bookId);
 			ps.setString(2, b.getIsbn());
 			ps.setString(3, b.getBookName());
 			ps.setString(4, b.getBookAuthor());
@@ -208,6 +215,42 @@ public class bookService {
 		b.setBookAvailableCopies(rs.getInt("bookAvailableCopies"));
 		b.setBorrowCount(rs.getInt("borrowCount"));
 		return b;
+	}
+
+	/**
+	 * Generate bookId in format: 41, 42, 43... (start from current max + 1)
+	 * Avoid duplicate entries by checking existing IDs
+	 */
+	private static String generateBookId() throws SQLException {
+		// Get the maximum bookId from the database
+		String maxIdSql = "SELECT MAX(CAST(bookId AS UNSIGNED)) FROM bookInformation";
+		try (Connection conn = db.getConnection(); 
+			 PreparedStatement ps = conn.prepareStatement(maxIdSql)) {
+			try (ResultSet rs = ps.executeQuery()) {
+				if (rs.next()) {
+					int maxId = rs.getInt(1);
+					if (!rs.wasNull() && maxId > 0) {
+						// Start from current max + 1
+						int newId = maxId + 1;
+						
+						// Double check if this ID already exists (for safety)
+						String checkSql = "SELECT COUNT(*) FROM bookInformation WHERE bookId = ?";
+						try (PreparedStatement checkPs = conn.prepareStatement(checkSql)) {
+							checkPs.setString(1, String.valueOf(newId));
+							try (ResultSet checkRs = checkPs.executeQuery()) {
+								if (checkRs.next() && checkRs.getInt(1) > 0) {
+									// If ID exists, try next one
+									newId++;
+								}
+							}
+						}
+						return String.valueOf(newId);
+					}
+				}
+			}
+		}
+		// If no records exist or max is 0, start from 41 (since test data has 40 records)
+		return "41";
 	}
 
 }

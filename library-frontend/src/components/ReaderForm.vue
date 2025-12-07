@@ -123,9 +123,22 @@ function submit(){
     
     submitting.value = true
     
+    // Map frontend field names to backend API field names
+    const backendForm = {
+      readerName: form.name,
+      readerCardType: form.idType,
+      readerCardNumber: form.idNumber,
+      readerPhoneNumber: form.phone,
+      // Set default values for required fields
+      readerStatus: 0, // 0表示正常状态
+      totalBorrowNumber: 0, // 初始总借书数为0
+      nowBorrowNumber: 0, // 初始当前借书数为0
+      registerDate: new Date().toISOString().split('T')[0] // 当前日期
+    }
+    
     // 模拟提交延迟，提供更好的用户体验
     setTimeout(() => {
-      emit('save',{ ...form })
+      emit('save', backendForm)
       submitting.value = false
       // close dialog
       emit('update:modelValue', false)

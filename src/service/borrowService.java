@@ -24,7 +24,7 @@ public class borrowService {
     public static long createBorrowSingle(String bookId, String readerId, LocalDate borrowDate, LocalDate dueDate) throws SQLException {
         String selectReader = "SELECT readerStatus, nowBorrowNumber, totalBorrowNumber FROM readerInformation WHERE readerId = ? FOR UPDATE";
         String selectBook = "SELECT bookAvailableCopies, borrowCount FROM bookInformation WHERE bookId = ? FOR UPDATE";
-        String insertBorrow = "INSERT INTO borrowTable (bookId, readerId, borrowDate, dueDate, borrowStatus) VALUES (?,?,?,?,?)";
+        String insertBorrow = "INSERT INTO borrowTable (borrowId, bookId, readerId, borrowDate, dueDate, borrowStates) VALUES (?,?,?,?,?,?)";
         String updateBook = "UPDATE bookInformation SET bookAvailableCopies = bookAvailableCopies - 1, borrowCount = borrowCount + 1 WHERE bookId = ?";
         String updateReader = "UPDATE readerInformation SET nowBorrowNumber = nowBorrowNumber + 1, totalBorrowNumber = totalBorrowNumber + 1 WHERE readerId = ?";
 
@@ -52,20 +52,19 @@ public class borrowService {
                     }
                 }
 
-                // insert borrow
+                // Generate borrowId in format: yyyy + sequence number (4 digits)
+                String borrowIdStr = generateBorrowId(borrowDate);
                 long borrowId;
-                try (PreparedStatement pib = conn.prepareStatement(insertBorrow, Statement.RETURN_GENERATED_KEYS)) {
-                    pib.setString(1, bookId);
-                    pib.setString(2, readerId);
-                    pib.setDate(3, java.sql.Date.valueOf(borrowDate));
-                    pib.setDate(4, java.sql.Date.valueOf(dueDate));
-                    pib.setInt(5, 0); // 0 表示在借
+                try (PreparedStatement pib = conn.prepareStatement(insertBorrow)) {
+                    pib.setString(1, borrowIdStr);
+                    pib.setString(2, bookId);
+                    pib.setString(3, readerId);
+                    pib.setDate(4, java.sql.Date.valueOf(borrowDate));
+                    pib.setDate(5, java.sql.Date.valueOf(dueDate));
+                    pib.setInt(6, 0); // 0 表示在借
                     int rows = pib.executeUpdate();
                     if (rows != 1) throw new SQLException("Insert borrow failed");
-                    try (ResultSet gk = pib.getGeneratedKeys()) {
-                        if (gk.next()) borrowId = gk.getLong(1);
-                        else throw new SQLException("Failed to obtain generated borrowId");
-                    }
+                    borrowId = Long.parseLong(borrowIdStr); // Convert to long for return value
                 }
 
                 // update book
@@ -103,7 +102,7 @@ public class borrowService {
     }
 
     /**
-     * 获取逾期未还列表（dueDate < today 且 borrowStatus = 0）
+     * 获取逾期未还列表（dueDate < today 且 borrowStates = 0）
      */
     public static List<borrowTable> getOverdueList(int offset, int limit) throws SQLException {
         List<borrowTable> list = new ArrayList<>();
@@ -182,7 +181,7 @@ public class borrowService {
 
                     String selectReader = "SELECT readerStatus, nowBorrowNumber, totalBorrowNumber FROM readerInformation WHERE readerId = ? FOR UPDATE";
                     String selectBook = "SELECT bookAvailableCopies, borrowCount FROM bookInformation WHERE bookId = ? FOR UPDATE";
-                    String insertBorrow = "INSERT INTO borrowTable (bookId, readerId, borrowDate, dueDate, borrowStatus) VALUES (?,?,?,?,?)";
+                    String insertBorrow = "INSERT INTO borrowTable (borrowId, bookId, readerId, borrowDate, dueDate, borrowStates) VALUES (?,?,?,?,?,?)";
                     String updateBook = "UPDATE bookInformation SET bookAvailableCopies = bookAvailableCopies - 1, borrowCount = borrowCount + 1 WHERE bookId = ?";
                     String updateReader = "UPDATE readerInformation SET nowBorrowNumber = nowBorrowNumber + 1, totalBorrowNumber = totalBorrowNumber + 1 WHERE readerId = ?";
 
@@ -205,19 +204,19 @@ public class borrowService {
                         }
                     }
 
+                    // Generate borrowId in format: yyyy + sequence number (4 digits)
+                    String borrowIdStr = generateBorrowId(borrowDate);
                     long borrowId;
-                    try (PreparedStatement pib = conn.prepareStatement(insertBorrow, Statement.RETURN_GENERATED_KEYS)) {
-                        pib.setString(1, bookId);
-                        pib.setString(2, readerId);
-                        pib.setDate(3, java.sql.Date.valueOf(borrowDate));
-                        pib.setDate(4, java.sql.Date.valueOf(dueDate));
-                        pib.setInt(5, 0);
+                    try (PreparedStatement pib = conn.prepareStatement(insertBorrow)) {
+                        pib.setString(1, borrowIdStr);
+                        pib.setString(2, bookId);
+                        pib.setString(3, readerId);
+                        pib.setDate(4, java.sql.Date.valueOf(borrowDate));
+                        pib.setDate(5, java.sql.Date.valueOf(dueDate));
+                        pib.setInt(6, 0);
                         int rows = pib.executeUpdate();
                         if (rows != 1) throw new SQLException("Insert borrow failed");
-                        try (ResultSet gk = pib.getGeneratedKeys()) {
-                            if (gk.next()) borrowId = gk.getLong(1);
-                            else throw new SQLException("Failed to obtain generated borrowId");
-                        }
+                        borrowId = Long.parseLong(borrowIdStr); // Convert to long for return value
                     }
 
                     try (PreparedStatement ub = conn.prepareStatement(updateBook)) {
@@ -267,6 +266,30 @@ public class borrowService {
         b.setBookTitle(rs.getString("bookTitle"));
         b.setReaderName(rs.getString("readerName"));
         return b;
+    }
+
+    /**
+     * Generate borrowId in format: yyyy + sequence number (4 digits)
+     * Example: 20230001
+     */
+    private static String generateBorrowId(LocalDate borrowDate) throws SQLException {
+        String yearPart = borrowDate.format(java.time.format.DateTimeFormatter.ofPattern("yyyy"));
+        
+        // Count existing borrowIds for the same year to determine sequence number
+        String countSql = "SELECT COUNT(*) FROM borrowTable WHERE borrowId LIKE ?";
+        try (Connection conn = db.getConnection(); 
+             PreparedStatement ps = conn.prepareStatement(countSql)) {
+            ps.setString(1, yearPart + "%");
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    int count = rs.getInt(1);
+                    // Format sequence number as 4 digits
+                    String sequence = String.format("%04d", count + 1);
+                    return yearPart + sequence;
+                }
+            }
+        }
+        return yearPart + "0001"; // Default if count fails
     }
 
 }

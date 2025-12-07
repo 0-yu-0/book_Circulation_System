@@ -282,7 +282,7 @@ SIZE = 10MB);
 | readerId | 读者Id | Varchar(20) | | 外码 | |
 | borrowDate | 借阅日期 | date | | | Not null |
 | dueDate | 应还日期 | Date | | | Not null |
-| borrowStatus | 借阅状态 | int | | | Not null, 0,1,2(正常、挂失、注销) |
+| borrowStates | 借阅状态 | int | | | Not null, 0,1,2(正常、挂失、注销) |
 #### （4）归还登记表：记录图书归还和罚款信息。
 **表3.4 returnTable（归还登记表）**
 | 属性列名 | 属性说明 | 数据类型 | 码 | 外码 | 备注 |

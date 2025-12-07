@@ -95,9 +95,25 @@ function submit(){
       form.publishDate = form.publishDate.toISOString().slice(0,10)
     }
     
+    // Map frontend field names to backend API field names
+    const backendForm = {
+      bookName: form.title,
+      bookAuthor: form.author,
+      isbn: form.isbn,
+      bookPublisher: form.publisher,
+      bookPubDate: form.publishDate,
+      bookCategory: form.category,
+      bookLocation: form.location,
+      bookTotalCopies: form.totalCopies,
+      // Set default values for required fields
+      bookAvailableCopies: form.totalCopies || 1, // 默认可用册数等于总册数
+      bookPrice: 0, // 默认价格
+      borrowCount: 0 // 初始借阅次数
+    }
+    
     // 模拟提交延迟，提供更好的用户体验
     setTimeout(() => {
-      emit('save', { ...form })
+      emit('save', backendForm)
       submitting.value = false
     }, 500)
   })

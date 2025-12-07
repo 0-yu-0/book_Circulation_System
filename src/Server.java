@@ -329,9 +329,37 @@ public class Server {
                 if ("POST".equalsIgnoreCase(method) && (path.equals("/api/readers") || path.equals("/api/readers/"))) {
                     String body = readBody(ex);
                     Map<String,Object> m = mapper.readValue(body, new com.fasterxml.jackson.core.type.TypeReference<Map<String,Object>>(){});
+                    
+                    // Debug: log all received fields to help diagnose the issue
+                    System.out.println("Received reader creation request with fields: " + m.keySet());
+                    
                     readerInformation r = new readerInformation();
+                    
+                    // Handle readerName with better error handling and case insensitivity
+                    String readerName = null;
+                    if (m.get("readerName") != null) {
+                        readerName = String.valueOf(m.get("readerName")).trim();
+                    } else if (m.get("readername") != null) { // Handle case insensitive
+                        readerName = String.valueOf(m.get("readername")).trim();
+                    } else if (m.get("name") != null) { // Try common alternative field names
+                        readerName = String.valueOf(m.get("name")).trim();
+                    } else if (m.get("username") != null) { // Try common alternative field names
+                        readerName = String.valueOf(m.get("username")).trim();
+                    }
+                    
+                    if (readerName == null || readerName.isEmpty()) {
+                        // Provide more detailed error message with available fields
+                        sendJson(ex, 400, Map.of(
+                            "code", 400, 
+                            "message", "readerName is required", 
+                            "availableFields", m.keySet(),
+                            "suggestion", "Please include 'readerName' field in your request"
+                        ));
+                        return;
+                    }
+                    
+                    r.setReaderName(readerName);
                     if (m.get("readerId")!=null) r.setReaderId(String.valueOf(m.get("readerId")));
-                    if (m.get("readerName")!=null) r.setReaderName(String.valueOf(m.get("readerName")));
                     if (m.get("readerCardType")!=null) r.setReaderCardType(String.valueOf(m.get("readerCardType")));
                     if (m.get("readerCardNumber")!=null) r.setReaderCardNumber(String.valueOf(m.get("readerCardNumber")));
                     if (m.get("readerPhoneNumber")!=null) r.setReaderPhoneNumber(String.valueOf(m.get("readerPhoneNumber")));
@@ -473,13 +501,12 @@ public class Server {
                 LocalDate returnDate = returnDateS.isEmpty() ? LocalDate.now() : LocalDate.parse(returnDateS);
                 if (m.get("borrowIds") != null) {
                     java.util.List<?> ids = (java.util.List<?>) m.get("borrowIds");
-                    java.util.List<Long> longs = new java.util.ArrayList<>();
-                    for (Object o : ids) longs.add(Long.parseLong(String.valueOf(o)));
-                    var result = returnService.createReturnBatch(longs, returnDate);
+                    java.util.List<String> borrowIds = new java.util.ArrayList<>();
+                    for (Object o : ids) borrowIds.add(String.valueOf(o));
+                    var result = returnService.createReturnBatch(borrowIds, returnDate);
                     sendOk(ex, Map.of("returned", result));
                 } else {
-                    String borrowIdS = m.get("borrowId") == null ? "" : String.valueOf(m.get("borrowId"));
-                    long borrowId = Long.parseLong(borrowIdS);
+                    String borrowId = m.get("borrowId") == null ? "" : String.valueOf(m.get("borrowId"));
                     long returnId = returnService.createReturn(borrowId, returnDate);
                     sendOk(ex, Map.of("returnId", returnId));
                 }
