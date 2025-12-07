@@ -32,6 +32,7 @@
         <template #columns>
           <el-table-column type="selection" width="55" />
           <el-table-column prop="title" label="书名" />
+          <el-table-column prop="id" label="图书ID" />
           <el-table-column prop="author" label="作者" />
           <el-table-column prop="publisher" label="出版社" />
           <el-table-column prop="publishDate" label="出版日期" />

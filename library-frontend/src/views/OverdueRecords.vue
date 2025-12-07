@@ -76,6 +76,14 @@ async function loadOverdueRecords() {
       size: pageSize.value
     }
     
+    // 添加筛选参数
+    if (searchForm.value.readerName) {
+      params.readerName = searchForm.value.readerName
+    }
+    if (searchForm.value.bookTitle) {
+      params.bookTitle = searchForm.value.bookTitle
+    }
+    
     const res = await statisticsApi.getOverdueBooks(params)
     if (res && res.code === 0) {
       // 修复：正确处理API响应数据结构

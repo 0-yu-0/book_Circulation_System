@@ -104,16 +104,28 @@ public class borrowService {
     /**
      * 获取逾期未还列表（dueDate < today 且 borrowStates = 0）
      */
-    public static List<borrowTable> getOverdueList(int offset, int limit) throws SQLException {
+    public static List<borrowTable> getOverdueList(String readerName, String bookTitle, int offset, int limit) throws SQLException {
         List<borrowTable> list = new ArrayList<>();
-        String sql = "SELECT bt.*, bi.bookName as bookTitle, ri.readerName, bi.bookCategory as category FROM borrowTable bt " +
+        StringBuilder sql = new StringBuilder("SELECT bt.*, bi.bookName as bookTitle, ri.readerName, bi.bookCategory as category FROM borrowTable bt " +
                      "LEFT JOIN bookInformation bi ON bt.bookId = bi.bookId " +
                      "LEFT JOIN readerInformation ri ON bt.readerId = ri.readerId " +
-                     "WHERE bt.borrowStates = 0 AND bt.dueDate < CURRENT_DATE() " +
-                     "ORDER BY bt.dueDate ASC LIMIT ? OFFSET ?";
-        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setInt(1, limit);
-            ps.setInt(2, offset);
+                     "WHERE bt.borrowStates = 0 AND bt.dueDate < CURRENT_DATE()");
+        
+        if (readerName != null && !readerName.isBlank()) sql.append(" AND ri.readerName LIKE ?");
+        if (bookTitle != null && !bookTitle.isBlank()) sql.append(" AND bi.bookName LIKE ?");
+        
+        sql.append(" ORDER BY bt.dueDate ASC LIMIT ? OFFSET ?");
+        
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql.toString())) {
+            int idx = 1;
+            if (readerName != null && !readerName.isBlank()) {
+                ps.setString(idx++, "%" + readerName + "%");
+            }
+            if (bookTitle != null && !bookTitle.isBlank()) {
+                ps.setString(idx++, "%" + bookTitle + "%");
+            }
+            ps.setInt(idx++, limit);
+            ps.setInt(idx, offset);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) list.add(mapRowToBorrowWithDetails(rs));
             }
@@ -124,9 +136,23 @@ public class borrowService {
     /**
      * 统计逾期未还记录总数（用于分页）
      */
-    public static int countOverdue() throws SQLException {
-        String sql = "SELECT COUNT(*) FROM borrowTable WHERE borrowStates = 0 AND dueDate < CURRENT_DATE()";
-        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+    public static int countOverdue(String readerName, String bookTitle) throws SQLException {
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM borrowTable bt " +
+                     "LEFT JOIN bookInformation bi ON bt.bookId = bi.bookId " +
+                     "LEFT JOIN readerInformation ri ON bt.readerId = ri.readerId " +
+                     "WHERE bt.borrowStates = 0 AND bt.dueDate < CURRENT_DATE()");
+        
+        if (readerName != null && !readerName.isBlank()) sql.append(" AND ri.readerName LIKE ?");
+        if (bookTitle != null && !bookTitle.isBlank()) sql.append(" AND bi.bookName LIKE ?");
+        
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql.toString())) {
+            int idx = 1;
+            if (readerName != null && !readerName.isBlank()) {
+                ps.setString(idx++, "%" + readerName + "%");
+            }
+            if (bookTitle != null && !bookTitle.isBlank()) {
+                ps.setString(idx++, "%" + bookTitle + "%");
+            }
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getInt(1);
             }
@@ -134,15 +160,25 @@ public class borrowService {
         return 0;
     }
 
-    public static List<borrowTable> listBorrows(String readerId, Integer status, int offset, int limit) throws SQLException {
+    public static List<borrowTable> listBorrows(String readerId, Integer status, String bookTitle, int offset, int limit) throws SQLException {
         List<borrowTable> list = new ArrayList<>();
         StringBuilder sql = new StringBuilder("SELECT bt.*, bi.bookName as bookTitle, ri.readerName FROM borrowTable bt LEFT JOIN bookInformation bi ON bt.bookId = bi.bookId LEFT JOIN readerInformation ri ON bt.readerId = ri.readerId WHERE 1=1");
-        if (readerId != null && !readerId.isBlank()) sql.append(" AND bt.readerId = '").append(readerId).append("'");
-        if (status != null) sql.append(" AND bt.borrowStates = ").append(status);
+        if (readerId != null && !readerId.isBlank()) sql.append(" AND bt.readerId = ?");
+        if (status != null) sql.append(" AND bt.borrowStates = ?");
+        if (bookTitle != null && !bookTitle.isBlank()) sql.append(" AND bi.bookName LIKE ?");
         sql.append(" ORDER BY bt.borrowDate DESC LIMIT ? OFFSET ?");
 
         try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql.toString())) {
             int idx = 1;
+            if (readerId != null && !readerId.isBlank()) {
+                ps.setString(idx++, readerId);
+            }
+            if (status != null) {
+                ps.setInt(idx++, status);
+            }
+            if (bookTitle != null && !bookTitle.isBlank()) {
+                ps.setString(idx++, "%" + bookTitle + "%");
+            }
             ps.setInt(idx++, limit);
             ps.setInt(idx, offset);
             try (ResultSet rs = ps.executeQuery()) {
@@ -155,11 +191,22 @@ public class borrowService {
     /**
      * Count total borrows matching filters for pagination
      */
-    public static int countBorrows(String readerId, Integer status) throws SQLException {
-        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM borrowTable bt WHERE 1=1");
-        if (readerId != null && !readerId.isBlank()) sql.append(" AND bt.readerId = '").append(readerId).append("'");
-        if (status != null) sql.append(" AND bt.borrowStates = ").append(status);
+    public static int countBorrows(String readerId, Integer status, String bookTitle) throws SQLException {
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM borrowTable bt LEFT JOIN bookInformation bi ON bt.bookId = bi.bookId WHERE 1=1");
+        if (readerId != null && !readerId.isBlank()) sql.append(" AND bt.readerId = ?");
+        if (status != null) sql.append(" AND bt.borrowStates = ?");
+        if (bookTitle != null && !bookTitle.isBlank()) sql.append(" AND bi.bookName LIKE ?");
         try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql.toString())) {
+            int idx = 1;
+            if (readerId != null && !readerId.isBlank()) {
+                ps.setString(idx++, readerId);
+            }
+            if (status != null) {
+                ps.setInt(idx++, status);
+            }
+            if (bookTitle != null && !bookTitle.isBlank()) {
+                ps.setString(idx++, "%" + bookTitle + "%");
+            }
             try (ResultSet rs = ps.executeQuery()) { if (rs.next()) return rs.getInt(1); }
         }
         return 0;

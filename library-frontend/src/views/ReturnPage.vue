@@ -38,7 +38,6 @@
           <el-table-column prop="readerName" label="读者姓名" />
           <el-table-column prop="borrowDate" label="借出日期" />
           <el-table-column prop="dueDate" label="应还日期" />
-          <el-table-column prop="overdueDays" label="逾期天数" />
           <el-table-column prop="statusText" label="状态" />
           <el-table-column label="操作">
             <template #default="{ row }">
@@ -127,22 +126,17 @@ async function fetchRecords(){
       // reader card or id number -> resolve to readerId if provided
       if (card.value) {
         try {
-          const rRes = await readerApi.getReaderByCard(card.value)
-          if (rRes && rRes.code === 0 && rRes.data && rRes.data.id) {
-            params.readerId = rRes.data.id
+          // Use fetchReaders directly for better search support (name, card number, etc.)
+          const searchRes = await readerApi.fetchReaders({ search: card.value, size: 5 })
+          if (searchRes && searchRes.code === 0 && searchRes.data && searchRes.data.items && searchRes.data.items.length > 0) {
+            // Use the first match
+            params.readerId = searchRes.data.items[0].id
           } else {
-            // Try to search readers by name or idNumber
-            const searchRes = await readerApi.fetchReaders({ search: card.value })
-            if (searchRes && searchRes.code === 0 && searchRes.data && searchRes.data.items && searchRes.data.items.length > 0) {
-              // Use the first match
-              params.readerId = searchRes.data.items[0].id
-            } else {
-              records.value = []
-              total.value = 0
-              ElMessage.warning('未找到匹配的读者，已清空结果')
-              loading.value = false
-              return
-            }
+            records.value = []
+            total.value = 0
+            ElMessage.warning('未找到匹配的读者，已清空结果')
+            loading.value = false
+            return
           }
         } catch (err) {
           ElMessage.error('查找读者失败: ' + (err.message || err))
@@ -169,22 +163,17 @@ async function fetchRecords(){
         // get borrowed records for reader and filter overdue client-side
         try {
           let readerId = null
-          const rRes = await readerApi.getReaderByCard(card.value)
-          if (rRes && rRes.code === 0 && rRes.data && rRes.data.id) {
-            readerId = rRes.data.id
+          // Use fetchReaders directly for better search support (name, card number, etc.)
+          const searchRes = await readerApi.fetchReaders({ search: card.value, size: 5 })
+          if (searchRes && searchRes.code === 0 && searchRes.data && searchRes.data.items && searchRes.data.items.length > 0) {
+            // Use the first match
+            readerId = searchRes.data.items[0].id
           } else {
-            // Try to search readers by name or idNumber
-            const searchRes = await readerApi.fetchReaders({ search: card.value })
-            if (searchRes && searchRes.code === 0 && searchRes.data && searchRes.data.items && searchRes.data.items.length > 0) {
-              // Use the first match
-              readerId = searchRes.data.items[0].id
-            } else {
-              records.value = []
-              total.value = 0
-              ElMessage.warning('未找到匹配的读者，已清空结果')
-              loading.value = false
-              return
-            }
+            records.value = []
+            total.value = 0
+            ElMessage.warning('未找到匹配的读者，已清空结果')
+            loading.value = false
+            return
           }
           const res = await borrowApi.fetchBorrowRecords({ readerId, status: 'borrowed', page: page.value, size: pageSize.value })
           if (res && res.code === 0) {
@@ -214,7 +203,14 @@ async function fetchRecords(){
         try {
           const offset = (page.value - 1) * pageSize.value
           const lim = pageSize.value
-          const res = await statisticsApi.getOverdueBooks({ offset, limit: lim })
+          const params = { offset, limit: lim }
+          
+          // 添加读者姓名筛选参数（使用card搜索框的内容）
+          if (card.value) {
+            params.readerName = card.value
+          }
+          
+          const res = await statisticsApi.getOverdueBooks(params)
           if (res && res.code === 0) {
             const items = Array.isArray(res.data) ? res.data : (res.data && res.data.items) ? res.data.items : []
             records.value = normalizeRecords(items)

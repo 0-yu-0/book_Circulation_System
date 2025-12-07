@@ -27,12 +27,13 @@
       <el-form-item label="电话" prop="phone">
         <el-input v-model="form.phone" placeholder="请输入电话" />
       </el-form-item>
-      <el-form-item label="可借书数" prop="borrowLimit">
+      <el-form-item label="最大借阅数" prop="borrowLimit">
         <el-input-number 
           v-model="form.borrowLimit" 
           :min="0" 
           controls-position="right"
           style="width: 100%"
+          :disabled="true"
         />
       </el-form-item>
     </el-form>

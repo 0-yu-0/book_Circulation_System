@@ -15,6 +15,14 @@
           <el-form-item label="图书名称">
             <el-input v-model="searchForm.bookTitle" placeholder="请输入图书名称" />
           </el-form-item>
+          <el-form-item label="状态">
+            <el-select v-model="searchForm.status" placeholder="请选择状态" clearable style="width: 120px">
+              <el-option label="全部" value="" />
+              <el-option label="在借" value="0" />
+              <el-option label="已还" value="1" />
+              <el-option label="逾期" value="2" />
+            </el-select>
+          </el-form-item>
           <el-form-item>
             <el-button type="primary" @click="search">查询</el-button>
           </el-form-item>
@@ -56,7 +64,8 @@ import { ElMessage } from 'element-plus'
 
 const searchForm = ref({
   readerId: '',
-  bookTitle: ''
+  bookTitle: '',
+  status: ''
 })
 
 const borrowRecords = ref([])
