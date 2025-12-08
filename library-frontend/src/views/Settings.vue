@@ -71,65 +71,7 @@
               </el-card>
             </el-tab-pane>
             
-            <!-- 个人设置 Tab -->
-            <el-tab-pane label="个人设置" name="personal">
-              <el-card class="setting-card">
-                <template #header>
-                  <div class="card-header">
-                    <el-icon><User /></el-icon>
-                    管理员账户设置
-                  </div>
-                </template>
-                
-                <el-form 
-                  :model="adminSettings" 
-                  label-width="120px" 
-                  class="settings-form"
-                >
-                  <el-form-item label="当前用户名">
-                    <el-input 
-                      v-model="adminSettings.username" 
-                      disabled 
-                      class="setting-input"
-                    />
-                  </el-form-item>
-                  
-                  <el-form-item label="原密码" prop="oldPassword">
-                    <el-input 
-                      v-model="adminSettings.oldPassword" 
-                      type="password" 
-                      show-password 
-                      class="setting-input"
-                      placeholder="请输入当前密码"
-                    />
-                  </el-form-item>
-                  
-                  <el-form-item label="新密码" prop="newPassword">
-                    <el-input 
-                      v-model="adminSettings.newPassword" 
-                      type="password" 
-                      show-password 
-                      class="setting-input"
-                      placeholder="请输入新密码"
-                    />
-                  </el-form-item>
-                  
-                  <el-form-item label="确认新密码" prop="confirmPassword">
-                    <el-input 
-                      v-model="adminSettings.confirmPassword" 
-                      type="password" 
-                      show-password 
-                      class="setting-input"
-                      placeholder="请再次输入新密码"
-                    />
-                  </el-form-item>
-                  
-                  <el-form-item>
-                    <el-button type="primary" @click="changePassword">修改密码</el-button>
-                  </el-form-item>
-                </el-form>
-              </el-card>
-            </el-tab-pane>
+
             
             <!-- 系统信息 Tab -->
             <el-tab-pane label="系统信息" name="info">
@@ -172,42 +114,24 @@ import Layout from '../components/Layout.vue'
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
-import { Setting, User, InfoFilled, Calendar, PriceTag, Collection } from '@element-plus/icons-vue'
+import { Setting, InfoFilled, Calendar, PriceTag, Collection } from '@element-plus/icons-vue'
 
 const activeTab = ref('basic')
 
 const settings = ref({
-  defaultBorrowDays: 30,
-  dailyFine: 0.5,
-  defaultMaxBorrow: 5
-})
-
-const adminSettings = ref({
-  username: '',
-  oldPassword: '',
-  newPassword: '',
-  confirmPassword: ''
+  defaultBorrowDays: 14,  // 与后端一致：默认借阅14天
+  dailyFine: 1.0,         // 与后端一致：每天罚金1元
+  defaultMaxBorrow: 5     // 默认最大借阅量5本
 })
 
 const loading = ref(true)
-const authStore = useAuthStore()
 
 onMounted(() => {
   setTimeout(() => {
     loadSettings()
-    loadUserInfo()
     loading.value = false
   }, 300)
 })
-
-function loadUserInfo() {
-  // 加载当前用户信息
-  if (authStore.user) {
-    adminSettings.value.username = authStore.user.username || 'admin'
-  } else {
-    adminSettings.value.username = 'admin'
-  }
-}
 
 function loadSettings() {
   // 从localStorage加载设置
@@ -219,37 +143,6 @@ function loadSettings() {
       console.error('Failed to parse settings', e)
     }
   }
-}
-
-function changePassword() {
-  // 密码验证
-  if (!adminSettings.value.oldPassword) {
-    ElMessage.error('请输入原密码')
-    return
-  }
-  
-  if (!adminSettings.value.newPassword) {
-    ElMessage.error('请输入新密码')
-    return
-  }
-  
-  if (adminSettings.value.newPassword !== adminSettings.value.confirmPassword) {
-    ElMessage.error('两次输入的新密码不一致')
-    return
-  }
-  
-  if (adminSettings.value.newPassword.length < 6) {
-    ElMessage.error('新密码长度不能少于6位')
-    return
-  }
-  
-  // 这里应该调用API修改密码，此处简化处理
-  ElMessage.success('密码修改成功')
-  
-  // 清空密码输入框
-  adminSettings.value.oldPassword = ''
-  adminSettings.value.newPassword = ''
-  adminSettings.value.confirmPassword = ''
 }
 </script>
 

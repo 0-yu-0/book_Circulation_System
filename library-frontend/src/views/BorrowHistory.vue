@@ -25,6 +25,7 @@
           </el-form-item>
           <el-form-item>
             <el-button type="primary" @click="search">查询</el-button>
+            <el-button type="warning" @click="refreshStatus" :loading="refreshing">刷新状态</el-button>
           </el-form-item>
         </el-form>
       </el-card>
@@ -70,6 +71,7 @@ const searchForm = ref({
 
 const borrowRecords = ref([])
 const loading = ref(false)
+const refreshing = ref(false)
 const page = ref(1)
 const total = ref(0)
 const pageSize = ref(10)
@@ -102,7 +104,8 @@ async function loadBorrowRecords() {
       
       borrowRecords.value = items.map(item => ({
         ...item,
-        status: statusMap[item.borrowStates] || item.status || '未知'
+        status: statusMap[item.borrowStates] || item.status || '未知',
+        returnDate: item.borrowStates === 1 ? (item.category || '暂未归还') : '暂未归还'
       }))
       
       total.value = data.total || items.length || 0
@@ -124,6 +127,25 @@ function search() {
 function handlePageChange(newPage) {
   page.value = newPage
   loadBorrowRecords()
+}
+
+async function refreshStatus() {
+  refreshing.value = true
+  try {
+    const res = await borrowApi.refreshBorrowStatus()
+    if (res && res.code === 0) {
+      const updatedCount = res.data?.updatedCount || 0
+      ElMessage.success(`借阅状态刷新成功，更新了 ${updatedCount} 条记录`)
+      // 刷新后重新加载数据
+      loadBorrowRecords()
+    } else {
+      ElMessage.error(res?.message || '刷新借阅状态失败')
+    }
+  } catch (error) {
+    ElMessage.error('刷新借阅状态失败: ' + (error.message || error))
+  } finally {
+    refreshing.value = false
+  }
 }
 
 function handleSizeChange(size) {

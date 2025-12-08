@@ -463,6 +463,13 @@ public class Server {
                     return;
                 }
 
+                // POST /api/borrow/refresh - 刷新借阅状态（优先处理）
+                if ("POST".equalsIgnoreCase(method) && path.equals("/api/borrow/refresh")) {
+                    int updatedCount = borrowService.refreshBorrowStatus();
+                    sendOk(ex, Map.of("updatedCount", updatedCount, "message", "借阅状态刷新成功"));
+                    return;
+                }
+
                 if ("POST".equalsIgnoreCase(ex.getRequestMethod())) {
                     String body = readBody(ex);
                     Map<String,Object> m = mapper.readValue(body, new TypeReference<Map<String,Object>>(){});
@@ -492,8 +499,8 @@ public class Server {
                      return;
                  }
 
-                 sendJson(ex,405, Map.of("code",405,"message","method not allowed"));
-                 return;
+                sendJson(ex,405, Map.of("code",405,"message","method not allowed"));
+                return;
             } catch (SQLException se) {
                 sendJson(ex,500, Map.of("code",500,"message", se.getMessage()));
             } catch (Exception e) {
@@ -608,14 +615,14 @@ public class Server {
                 // accept frontend naming too
                 if ("popular".equalsIgnoreCase(type) || "popular-books".equalsIgnoreCase(type)) {
                     int top = Integer.parseInt(q.getOrDefault("top", "10"));
-                    var items = service.bookService.getPopularBooks(top);
+                    var items = bookService.getPopularBooks(top);
                     sendJson(ex,200, Map.of("code",0, "data", Map.of("items", items)));
                     return;
                 } else if ("vacant".equalsIgnoreCase(type) || "vacant-books".equalsIgnoreCase(type)) {
                     int offset = Integer.parseInt(q.getOrDefault("offset","0"));
                     int limit = Integer.parseInt(q.getOrDefault("limit","20"));
-                    var items = service.bookService.getVacantBooks(offset, limit);
-                    int total = service.bookService.countVacantBooks();
+                    var items = bookService.getVacantBooks(offset, limit);
+                    int total = bookService.countVacantBooks();
                     Map<String,Object> data = new HashMap<>();
                     data.put("items", items);
                     data.put("total", total);
@@ -626,8 +633,8 @@ public class Server {
                     int limit = Integer.parseInt(q.getOrDefault("limit","20"));
                     String readerName = q.get("readerName");
                     String bookTitle = q.get("bookTitle");
-                    var items = service.borrowService.getOverdueList(readerName, bookTitle, offset, limit);
-                    int total = service.borrowService.countOverdue(readerName, bookTitle);
+                    var items = borrowService.getOverdueList(readerName, bookTitle, offset, limit);
+                    int total = borrowService.countOverdue(readerName, bookTitle);
                     Map<String,Object> data = new HashMap<>();
                     data.put("items", items);
                     data.put("total", total);
@@ -637,6 +644,8 @@ public class Server {
                     // compute simple overview metrics via direct queries
                     try (java.sql.Connection c = db.getConnection()) {
                         int totalBooks = 0; int totalReaders = 0; int borrowedNow = 0; int overdue = 0;
+                        int todayBorrows = 0; int todayReturns = 0;
+                        
                         try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT COUNT(*) FROM bookInformation")) {
                             try (java.sql.ResultSet rs = ps.executeQuery()) { if (rs.next()) totalBooks = rs.getInt(1); }
                         }
@@ -649,7 +658,23 @@ public class Server {
                         try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT COUNT(*) FROM borrowTable WHERE borrowStates = 0 AND dueDate < CURRENT_DATE()")) {
                             try (java.sql.ResultSet rs = ps.executeQuery()) { if (rs.next()) overdue = rs.getInt(1); }
                         }
-                        sendJson(ex,200, Map.of("code",0, "data", Map.of("totalBooks", totalBooks, "totalReaders", totalReaders, "borrowedNow", borrowedNow, "overdue", overdue)));
+                        // 今日借书：统计今天借出的图书数量
+                        try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT COUNT(*) FROM borrowTable WHERE DATE(borrowDate) = CURRENT_DATE()")) {
+                            try (java.sql.ResultSet rs = ps.executeQuery()) { if (rs.next()) todayBorrows = rs.getInt(1); }
+                        }
+                        // 今日还书：统计今天归还的图书数量
+                        try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT COUNT(*) FROM returnTable WHERE DATE(returnDate) = CURRENT_DATE()")) {
+                            try (java.sql.ResultSet rs = ps.executeQuery()) { if (rs.next()) todayReturns = rs.getInt(1); }
+                        }
+                        
+                        sendJson(ex,200, Map.of("code",0, "data", Map.of(
+                            "totalBooks", totalBooks, 
+                            "totalReaders", totalReaders, 
+                            "borrowedNow", borrowedNow, 
+                            "overdue", overdue,
+                            "todayBorrows", todayBorrows,
+                            "todayReturns", todayReturns
+                        )));
                         return;
                     }
                 } else if ("borrow-details".equalsIgnoreCase(type)) {

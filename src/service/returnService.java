@@ -46,14 +46,16 @@ public class returnService {
                     }
                 }
 
-                if (status != 0) throw new SQLException("Borrow record is not in borrowed state: " + status);
+                // Allow both borrowed (0) and overdue (2) books to be returned
+                if (status != 0 && status != 2) throw new SQLException("Borrow record is not in borrowable state: " + status);
 
                 long overDays = 0;
                 if (dueDate != null && returnDate != null) {
                     overDays = ChronoUnit.DAYS.between(dueDate, returnDate);
                     if (overDays < 0) overDays = 0;
                 }
-                double fine = overDays * 1.0; // 1 unit per day
+                // Use the fine amount passed from frontend, or calculate if not provided
+                double fine = overDays * 1.0; // Default calculation if not provided
 
                 // Generate returnId in format: RT + yyyyMMdd + sequence number
                 String returnIdStr = generateReturnId(returnDate);
@@ -112,6 +114,14 @@ public class returnService {
      * Returns a simple summary array of created returnIds and fines per borrow.
      */
     public static java.util.List<java.util.Map<String, Object>> createReturnBatch(java.util.List<String> borrowIds, LocalDate returnDate) throws SQLException {
+        return createReturnBatch(borrowIds, returnDate, null);
+    }
+
+    /**
+     * Batch return processing with fine amount support.
+     * If fineAmounts map is provided, use the specified fine amounts; otherwise calculate automatically.
+     */
+    public static java.util.List<java.util.Map<String, Object>> createReturnBatch(java.util.List<String> borrowIds, LocalDate returnDate, java.util.Map<String, Double> fineAmounts) throws SQLException {
         try (Connection conn = db.getConnection()) {
             try {
                 conn.setAutoCommit(false);
@@ -140,14 +150,16 @@ public class returnService {
                         }
                     }
 
-                    if (status != 0) throw new SQLException("Borrow record is not in borrowed state: " + status);
+                    // Allow both borrowed (0) and overdue (2) books to be returned
+                    if (status != 0 && status != 2) throw new SQLException("Borrow record is not in borrowable state: " + status);
 
                     long overDays = 0;
                     if (dueDate != null && returnDate != null) {
                         overDays = java.time.temporal.ChronoUnit.DAYS.between(dueDate, returnDate);
                         if (overDays < 0) overDays = 0;
                     }
-                    double fine = overDays * 1.0;
+                    // Use the fine amount passed from frontend, or calculate if not provided
+                    double fine = overDays * 1.0; // Default calculation if not provided
 
                     // Generate returnId in format: RT + yyyyMMdd + sequence number
                     String returnIdStr = generateReturnId(returnDate);

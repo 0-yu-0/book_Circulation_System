@@ -434,6 +434,21 @@ async function submit(){
       if (bk.data.availableCopies <= 0) throw new Error(`《${bk.data.title}》库存不足`)
     }
 
+    // Check borrow limit before submitting
+    const readerDetail = await readerApi.getReader(reader.value.id ?? reader.value.readerId)
+    if (readerDetail && readerDetail.code === 0) {
+      const readerInfo = readerDetail.data
+      const currentBorrows = readerInfo.currentBorrowCount || 0
+      const maxBorrows = readerInfo.borrowLimit || 5  // Default to 5 if not set
+      const newBorrowCount = selectedBooks.value.reduce((sum, book) => sum + (book.count || 1), 0)
+      
+      if (currentBorrows + newBorrowCount > maxBorrows) {
+        throw new Error(`借阅数量超过限制。当前已借: ${currentBorrows}本，最大可借: ${maxBorrows}本，本次尝试借阅: ${newBorrowCount}本`)
+      }
+    } else {
+      throw new Error('无法获取读者信息')
+    }
+
     const payload = { readerId: reader.value.id ?? reader.value.readerId, books: selectedBooks.value.map(b=>({ bookId: b.id, count: b.count })), borrowDate: new Date().toISOString().slice(0,10), dueDate: '' }
     const res = await borrowApi.createBorrow(payload)
     if (res && res.code===0){

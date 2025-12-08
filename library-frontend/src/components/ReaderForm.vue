@@ -33,7 +33,6 @@
           :min="0" 
           controls-position="right"
           style="width: 100%"
-          :disabled="true"
         />
       </el-form-item>
     </el-form>
@@ -112,7 +111,7 @@ watch(()=>props.reader || props.data, (r)=>{
       idType: r.idType || r.readerCardType,
       idNumber: r.idNumber || r.readerCardNumber,
       phone: r.phone || r.readerPhoneNumber,
-      borrowLimit: r.borrowLimit || 5
+      borrowLimit: r.totalBorrowNumber || r.borrowLimit || 5 // 优先使用totalBorrowNumber字段
     };
     console.log('ReaderForm: mapped form data:', mappedForm);
     Object.assign(form, mappedForm);
@@ -150,7 +149,7 @@ function submit(){
       readerPhoneNumber: form.phone,
       // Set default values for required fields
       readerStatus: 0, // 0表示正常状态
-      totalBorrowNumber: 0, // 初始总借书数为0
+      totalBorrowNumber: form.borrowLimit || 5, // 使用表单中的最大借阅数
       nowBorrowNumber: 0, // 初始当前借书数为0
       registerDate: new Date().toISOString().split('T')[0] // 当前日期
     }
@@ -163,8 +162,7 @@ function submit(){
         backendForm.id = form.id;
       }
       // For edit mode, preserve existing values instead of setting defaults
-      // Remove default values that should not be overwritten
-      delete backendForm.totalBorrowNumber;
+      // But keep totalBorrowNumber to allow updating the borrow limit
       delete backendForm.nowBorrowNumber;
       delete backendForm.registerDate;
     }

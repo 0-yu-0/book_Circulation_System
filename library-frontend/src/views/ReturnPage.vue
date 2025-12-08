@@ -41,7 +41,7 @@
           <el-table-column prop="statusText" label="状态" />
           <el-table-column label="操作">
             <template #default="{ row }">
-              <el-button @click="returnOne(row)" :loading="row.returning" :disabled="row.borrowStates !== 0">归还</el-button>
+              <el-button @click="returnOne(row)" :loading="row.returning" :disabled="row.borrowStates !== 0 && row.borrowStates !== 2">归还</el-button>
             </template>
           </el-table-column>
         </template>
@@ -57,12 +57,12 @@ import { ref, onMounted } from 'vue'
 import * as borrowApi from '../api/borrow'
 import * as readerApi from '../api/reader'
 import * as statisticsApi from '../api/statistics'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 // filters & pagination state
 const card = ref('')
-// Default to show only unreturned records
-const status = ref('all')
+// Default to show only borrowed records (not returned)
+const status = ref('borrowed')
 const borrowDateRange = ref([]) // [start, end]
 const page = ref(1)
 const pageSize = ref(10)
@@ -113,7 +113,11 @@ async function fetchRecords(){
         size: pageSize.value
       }
       
-      if (status.value !== 'all') {
+      if (status.value === 'borrowed') {
+        // For borrowed status, query both borrowed (0) and overdue (2) books
+        // We'll fetch all records and filter client-side
+        params.status = 'all' // Fetch all records
+      } else if (status.value !== 'all') {
         params.status = status.value
       }
 
@@ -149,8 +153,18 @@ async function fetchRecords(){
       if (res && res.code === 0) {
         const data = res.data || {}
         const items = data.items || data || []
-        records.value = normalizeRecords(items)
-        total.value = data.total ?? (Array.isArray(items) ? items.length : 0)
+        
+        // Filter out returned books when status is 'borrowed'
+        let filteredItems = items
+        if (status.value === 'borrowed') {
+          filteredItems = items.filter(item => {
+            const statusValue = item.borrowStates ?? item.borrowStatus ?? item.status
+            return statusValue === 0 || statusValue === 2 // Only show borrowed (0) and overdue (2) books
+          })
+        }
+        
+        records.value = normalizeRecords(filteredItems)
+        total.value = filteredItems.length
       } else {
         ElMessage.error(res?.message || '加载借阅记录失败')
         records.value = []
@@ -245,22 +259,23 @@ function normalizeRecords(list){
     let statusText = '未知'
     let overdueDays = 0
 
+    // Calculate overdue days for all records that have a due date
+    const due = record.dueDate || record.due_date
+    if (due) {
+      const dueDate = new Date(due)
+      const today = new Date()
+      const diffTime = today - dueDate
+      overdueDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+      if (overdueDays < 0) overdueDays = 0
+    }
+
+    // Set status text based on borrow status
     if (record.borrowStates === 0 || record.borrowStatus === 0 || record.status === 0) {
       statusText = '在借'
-
-      const due = record.dueDate || record.due_date
-      if (due) {
-        const dueDate = new Date(due)
-        const today = new Date()
-        const diffTime = today - dueDate
-        overdueDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-        if (overdueDays < 0) overdueDays = 0
-      }
     } else if (record.borrowStates === 1 || record.borrowStatus === 1) {
       statusText = '已还'
     } else if (record.borrowStates === 2 || record.borrowStatus === 2) {
       statusText = '逾期'
-      overdueDays = record.overdueDays || record.overdue_days || 0
     }
 
     return {
@@ -275,11 +290,51 @@ function normalizeRecords(list){
 }
 
 async function returnOne(row){
+  // Check if the book is overdue
+  if (row.borrowStates === 2 || row.overdueDays > 0) {
+    // Show fine payment dialog for overdue books
+    showFinePaymentDialog(row)
+  } else {
+    // Normal return for non-overdue books
+    await performReturn(row)
+  }
+}
+
+// Show fine payment dialog
+function showFinePaymentDialog(row) {
+  const overdueDays = row.overdueDays || 0
+  const fineAmount = overdueDays * 1.0 // 每天罚金1元，与后端一致
+  
+  ElMessageBox.confirm(
+    `该书已逾期 ${overdueDays} 天，需缴纳罚金 ${fineAmount.toFixed(2)} 元（每天1元）。确认缴纳罚金并归还吗？`,
+    '逾期归还',
+    {
+      confirmButtonText: '确认缴纳',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }
+  ).then(async () => {
+    await performReturn(row)
+  }).catch(() => {
+    // User cancelled
+    ElMessage.info('已取消归还')
+  })
+}
+
+// Perform the actual return operation
+async function performReturn(row) {
   row.returning = true
   try {
-    const res = await borrowApi.returnBooks({ borrowIds: [row.borrowId], returnDate: new Date().toISOString().slice(0,10) })
+    const returnData = {
+      borrowIds: [row.borrowId], 
+      returnDate: new Date().toISOString().slice(0,10)
+    }
+    
+    const res = await borrowApi.returnBooks(returnData)
     if (res && res.code===0) {
-      ElMessage.success('归还成功')
+      // 后端会自动计算并保存罚金到归还记录表
+      const message = row.overdueDays > 0 ? `归还成功，已缴纳罚金 ${(row.overdueDays * 1.0).toFixed(2)} 元` : '归还成功'
+      ElMessage.success(message)
       // refresh current page
       fetchRecords()
     } else {

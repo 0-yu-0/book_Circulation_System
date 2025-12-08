@@ -38,7 +38,6 @@
             <el-table-column prop="readerName" label="读者姓名" />
             <el-table-column prop="dueDate" label="应还日期" />
             <el-table-column prop="overdueDays" label="逾期天数" />
-            <el-table-column prop="category" label="分类" />
           </template>
         </data-table>
       </el-card>

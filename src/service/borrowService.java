@@ -102,14 +102,15 @@ public class borrowService {
     }
 
     /**
-     * 获取逾期未还列表（dueDate < today 且 borrowStates = 0）
+     * 获取逾期未还列表（borrowStates = 2）
      */
     public static List<borrowTable> getOverdueList(String readerName, String bookTitle, int offset, int limit) throws SQLException {
         List<borrowTable> list = new ArrayList<>();
-        StringBuilder sql = new StringBuilder("SELECT bt.*, bi.bookName as bookTitle, ri.readerName, bi.bookCategory as category FROM borrowTable bt " +
+        StringBuilder sql = new StringBuilder("SELECT bt.*, bi.bookName as bookTitle, ri.readerName, bi.bookCategory as category, rt.returnDate FROM borrowTable bt " +
                      "LEFT JOIN bookInformation bi ON bt.bookId = bi.bookId " +
                      "LEFT JOIN readerInformation ri ON bt.readerId = ri.readerId " +
-                     "WHERE bt.borrowStates = 0 AND bt.dueDate < CURRENT_DATE()");
+                     "LEFT JOIN returnTable rt ON bt.borrowId = rt.borrowId " +
+                     "WHERE bt.borrowStates = 2");
         
         if (readerName != null && !readerName.isBlank()) sql.append(" AND ri.readerName LIKE ?");
         if (bookTitle != null && !bookTitle.isBlank()) sql.append(" AND bi.bookName LIKE ?");
@@ -140,7 +141,7 @@ public class borrowService {
         StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM borrowTable bt " +
                      "LEFT JOIN bookInformation bi ON bt.bookId = bi.bookId " +
                      "LEFT JOIN readerInformation ri ON bt.readerId = ri.readerId " +
-                     "WHERE bt.borrowStates = 0 AND bt.dueDate < CURRENT_DATE()");
+                     "WHERE bt.borrowStates = 2");
         
         if (readerName != null && !readerName.isBlank()) sql.append(" AND ri.readerName LIKE ?");
         if (bookTitle != null && !bookTitle.isBlank()) sql.append(" AND bi.bookName LIKE ?");
@@ -162,7 +163,7 @@ public class borrowService {
 
     public static List<borrowTable> listBorrows(String readerId, Integer status, String bookTitle, int offset, int limit) throws SQLException {
         List<borrowTable> list = new ArrayList<>();
-        StringBuilder sql = new StringBuilder("SELECT bt.*, bi.bookName as bookTitle, ri.readerName FROM borrowTable bt LEFT JOIN bookInformation bi ON bt.bookId = bi.bookId LEFT JOIN readerInformation ri ON bt.readerId = ri.readerId WHERE 1=1");
+        StringBuilder sql = new StringBuilder("SELECT bt.*, bi.bookName as bookTitle, ri.readerName, rt.returnDate FROM borrowTable bt LEFT JOIN bookInformation bi ON bt.bookId = bi.bookId LEFT JOIN readerInformation ri ON bt.readerId = ri.readerId LEFT JOIN returnTable rt ON bt.borrowId = rt.borrowId WHERE 1=1");
         if (readerId != null && !readerId.isBlank()) sql.append(" AND bt.readerId = ?");
         if (status != null) sql.append(" AND bt.borrowStates = ?");
         if (bookTitle != null && !bookTitle.isBlank()) sql.append(" AND bi.bookName LIKE ?");
@@ -312,7 +313,26 @@ public class borrowService {
         // Add book and reader details
         b.setBookTitle(rs.getString("bookTitle"));
         b.setReaderName(rs.getString("readerName"));
+        
+        // Add returnDate from returnTable
+        java.sql.Date rd = rs.getDate("returnDate");
+        if (rd != null) {
+            // Store returnDate in category field temporarily since borrowTable doesn't have returnDate field
+            b.setCategory(rd.toLocalDate().toString());
+        }
         return b;
+    }
+
+    /**
+     * 刷新借阅状态：检查所有在借记录，将逾期未还的记录状态更新为逾期
+     * @return 更新的记录数量
+     */
+    public static int refreshBorrowStatus() throws SQLException {
+        String updateSql = "UPDATE borrowTable SET borrowStates = 2 WHERE borrowStates = 0 AND dueDate < CURRENT_DATE()";
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(updateSql)) {
+            int updatedCount = ps.executeUpdate();
+            return updatedCount;
+        }
     }
 
     /**

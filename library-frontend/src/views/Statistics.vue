@@ -24,33 +24,7 @@
             </data-table>
           </div>
         </el-tab-pane>
-        <el-tab-pane label="逾期未还" name="overdue">
-          <el-card style="margin-bottom: 16px;">
-            <div ref="pieChartContainer" class="chart-container"></div>
-          </el-card>
-          <data-table 
-            :data="overdue" 
-            :loading="loading" 
-            :showSelection="false"
-            :page="page"
-            :page-size="pageSize"
-            :total="overdueTotal"
-            @page-change="handleOverduePageChange"
-            @size-change="handleOverdueSizeChange"
-          >
-            <template #columns>
-              <el-table-column prop="borrowId" label="借阅编号" />
-              <el-table-column prop="bookTitle" label="书名" />
-              <el-table-column prop="readerName" label="读者姓名" />
-              <el-table-column prop="dueDate" label="应还日期" />
-              <el-table-column prop="overdueDays" label="逾期天数" />
-              <el-table-column prop="category" label="分类" />
-            </template>
-          </data-table>
-          <div style="text-align: right; margin-top: -24px; margin-bottom: 12px;">
-            <el-badge :value="overdueTotal" class="item" />
-          </div>
-        </el-tab-pane>
+
       </el-tabs>
     </template>
   </layout>

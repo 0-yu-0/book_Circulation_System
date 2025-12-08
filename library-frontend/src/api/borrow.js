@@ -26,3 +26,10 @@ export async function fetchBorrowedByReader(readerId, options = {}){
   if (res && res.code === 0) return res
   return { code: 0, data: res }
 }
+
+// 刷新借阅状态：将逾期未还的记录状态更新为逾期
+export async function refreshBorrowStatus(){
+  const res = await request.post('/borrow/refresh')
+  if (res && res.code === 0) return res
+  return { code: 0, data: res }
+}
