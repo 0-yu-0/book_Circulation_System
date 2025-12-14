@@ -4,11 +4,8 @@
       <el-skeleton :loading="loading" animated :rows="10">
         <template #default>
           <el-page-header @back="() => router.go(-1)">
-            <template #content>
-              <span>读者详情</span>
-            </template>
           </el-page-header>
-          
+
           <el-card style="margin-top: 20px;">
             <template #header>
               <div class="card-header">
@@ -28,9 +25,9 @@
               <el-descriptions-item label="当前借书数">{{ reader.currentBorrowCount }}</el-descriptions-item>
             </el-descriptions>
             
-            <div style="margin-top: 20px; text-align: right;">
-              <el-button @click="router.push({ path: '/readers', query: { editId: reader.id } })">编辑</el-button>
-            </div>
+<!--            <div style="margin-top: 20px; text-align: right;">-->
+<!--              <el-button @click="router.push({ path: '/readers', query: { editId: reader.id } })">编辑</el-button>-->
+<!--            </div>-->
           </el-card>
         </template>
       </el-skeleton>

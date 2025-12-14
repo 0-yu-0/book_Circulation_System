@@ -3,13 +3,12 @@
     <template #default>
       <el-form :inline="true" class="filter-form" @submit.prevent>
         <el-form-item label="读者">
-          <el-input v-model="card" placeholder="读者卡号、姓名或证件号" />
+          <el-input v-model="card" placeholder="读者姓名或证件号" />
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="status" placeholder="状态" :clearable="false" style="width:140px">
-            <el-option label="全部" value="all" />
+<!--            <el-option label="全部" value="all" />-->
             <el-option label="在借" value="borrowed" />
-            <el-option label="已还" value="returned" />
             <el-option label="逾期" value="overdue" />
           </el-select>
         </el-form-item>
@@ -82,7 +81,7 @@ async function applyFilters(){
 
 function resetFilters(){
   card.value = ''
-  status.value = 'all'
+  status.value = 'borrowed'
   borrowDateRange.value = []
   page.value = 1
   pageSize.value = 10
@@ -107,7 +106,7 @@ async function fetchRecords(){
     // If status is 'borrowed' -> query borrow API with status=borrowed
     // If status is 'overdue' -> if reader specified, fetch borrowed by reader and filter overdue client-side; otherwise call statistics overdue endpoint
 
-    if (status.value === 'borrowed' || status.value === 'all' || status.value === 'returned') {
+    if (status.value === 'borrowed' || status.value === 'all') {
       const params = {
         page: page.value,
         size: pageSize.value

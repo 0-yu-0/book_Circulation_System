@@ -1,13 +1,13 @@
 <template>
   <layout>
     <template #default>
-      <el-page-header>
-        <template #content>
-          <span>逾期记录</span>
-        </template>
-      </el-page-header>
+<!--      <el-page-header>-->
+<!--        <template #content>-->
+<!--          <span>逾期记录</span>-->
+<!--        </template>-->
+<!--      </el-page-header>-->
       
-      <el-card style="margin-top: 20px;">
+      <el-card class="search-card">
         <el-form :inline="true" @submit.prevent="search">
           <el-form-item label="读者姓名">
             <el-input v-model="searchForm.readerName" placeholder="请输入读者姓名" />
@@ -21,7 +21,7 @@
         </el-form>
       </el-card>
       
-      <el-card style="margin-top: 20px;">
+      <el-card style="margin-top: 15px;">
         <data-table 
           :data="overdueRecords" 
           :loading="loading" 
@@ -128,3 +128,12 @@ function handleSizeChange(size) {
   loadOverdueRecords()
 }
 </script>
+
+<style scoped>
+.search-card {
+  margin: 20px 0 0px 0;
+  background-color: #f5f5f5; /* 与系统主内容区域背景保持一致 */
+  box-shadow: none; /* 去除阴影效果 */
+  border: none; /* 去除边框 */
+}
+</style>

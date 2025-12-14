@@ -17,8 +17,9 @@ public class borrowService {
      * 为单本图书创建借阅记录（事务）：
      * - 检查读者状态
      * - 检查库存
+     * - 检查读者是否超过最大借书限制
      * - 插入 borrowTable，更新 bookInformation.available 和 borrowCount
-     * - 更新 readerInformation.nowBorrowNumber 和 totalBorrowNumber
+     * - 更新 readerInformation.nowBorrowNumber
      * 返回生成的 borrowId（数据库自增），若失败抛出 SQLException
      */
     public static long createBorrowSingle(String bookId, String readerId, LocalDate borrowDate, LocalDate dueDate) throws SQLException {
@@ -26,20 +27,31 @@ public class borrowService {
         String selectBook = "SELECT bookAvailableCopies, borrowCount FROM bookInformation WHERE bookId = ? FOR UPDATE";
         String insertBorrow = "INSERT INTO borrowTable (borrowId, bookId, readerId, borrowDate, dueDate, borrowStates) VALUES (?,?,?,?,?,?)";
         String updateBook = "UPDATE bookInformation SET bookAvailableCopies = bookAvailableCopies - 1, borrowCount = borrowCount + 1 WHERE bookId = ?";
-        String updateReader = "UPDATE readerInformation SET nowBorrowNumber = nowBorrowNumber + 1, totalBorrowNumber = totalBorrowNumber + 1 WHERE readerId = ?";
+        String updateReader = "UPDATE readerInformation SET nowBorrowNumber = nowBorrowNumber + 1 WHERE readerId = ?";
 
         try (Connection conn = db.getConnection()) {
             try {
                 conn.setAutoCommit(false);
 
                 // check reader
+                int currentBorrowed = 0;
+                int maxBorrowLimit = 0;
                 try (PreparedStatement prs = conn.prepareStatement(selectReader)) {
                     prs.setString(1, readerId);
                     try (ResultSet rs = prs.executeQuery()) {
                         if (!rs.next()) throw new SQLException("Reader not found: " + readerId);
                         int status = rs.getInt("readerStatus");
                         if (status != 0) throw new SQLException("Reader status invalid: " + status);
+                        
+                        // 获取当前借书数量和最大借书限制
+                        currentBorrowed = rs.getInt("nowBorrowNumber");
+                        maxBorrowLimit = rs.getInt("totalBorrowNumber");
                     }
+                }
+
+                // 检查是否超过最大借书限制
+                if (currentBorrowed >= maxBorrowLimit) {
+                    throw new SQLException("借书数量已达上限，最大可借 " + maxBorrowLimit + " 本");
                 }
 
                 // check book availability
@@ -222,26 +234,39 @@ public class borrowService {
             try {
                 conn.setAutoCommit(false);
                 List<Long> created = new ArrayList<>();
+                
+                // 先检查读者是否超过最大借书限制
+                String selectReader = "SELECT readerStatus, nowBorrowNumber, totalBorrowNumber FROM readerInformation WHERE readerId = ? FOR UPDATE";
+                int currentBorrowed = 0;
+                int maxBorrowLimit = 0;
+                
+                try (PreparedStatement prs = conn.prepareStatement(selectReader)) {
+                    prs.setString(1, readerId);
+                    try (ResultSet rs = prs.executeQuery()) {
+                        if (!rs.next()) throw new SQLException("Reader not found: " + readerId);
+                        int status = rs.getInt("readerStatus");
+                        if (status != 0) throw new SQLException("Reader status invalid: " + status);
+                        
+                        // 获取当前借书数量和最大借书限制
+                        currentBorrowed = rs.getInt("nowBorrowNumber");
+                        maxBorrowLimit = rs.getInt("totalBorrowNumber");
+                    }
+                }
+                
+                // 检查是否超过最大借书限制
+                if (currentBorrowed + bookIds.size() > maxBorrowLimit) {
+                    throw new SQLException("借书数量将超过上限，当前已借 " + currentBorrowed + " 本，最大可借 " + maxBorrowLimit + " 本，本次尝试借阅 " + bookIds.size() + " 本");
+                }
+                
                 for (String bookId : bookIds) {
                     // reuse createBorrowSingle logic but we need a version that accepts a connection or replicate logic here
                     // For simplicity, call existing single method which opens its own connection — to keep this patch small we will instead
                     // perform per-book create by calling SQL here using the same locks as createBorrowSingle
 
-                    String selectReader = "SELECT readerStatus, nowBorrowNumber, totalBorrowNumber FROM readerInformation WHERE readerId = ? FOR UPDATE";
                     String selectBook = "SELECT bookAvailableCopies, borrowCount FROM bookInformation WHERE bookId = ? FOR UPDATE";
                     String insertBorrow = "INSERT INTO borrowTable (borrowId, bookId, readerId, borrowDate, dueDate, borrowStates) VALUES (?,?,?,?,?,?)";
                     String updateBook = "UPDATE bookInformation SET bookAvailableCopies = bookAvailableCopies - 1, borrowCount = borrowCount + 1 WHERE bookId = ?";
-                    String updateReader = "UPDATE readerInformation SET nowBorrowNumber = nowBorrowNumber + 1, totalBorrowNumber = totalBorrowNumber + 1 WHERE readerId = ?";
-
-                    // check reader once per iteration (locks will be repeated but acceptable for now)
-                    try (PreparedStatement prs = conn.prepareStatement(selectReader)) {
-                        prs.setString(1, readerId);
-                        try (ResultSet rs = prs.executeQuery()) {
-                            if (!rs.next()) throw new SQLException("Reader not found: " + readerId);
-                            int status = rs.getInt("readerStatus");
-                            if (status != 0) throw new SQLException("Reader status invalid: " + status);
-                        }
-                    }
+                    String updateReader = "UPDATE readerInformation SET nowBorrowNumber = nowBorrowNumber + 1 WHERE readerId = ?";
 
                     try (PreparedStatement psb = conn.prepareStatement(selectBook)) {
                         psb.setString(1, bookId);

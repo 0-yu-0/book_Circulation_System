@@ -11,9 +11,9 @@
         </search-form>
         <div class="actions">
           <el-upload :show-file-list="false" :before-upload="beforeUpload">
-            <el-button>导入 CSV</el-button>
+            <el-button>导入数据</el-button>
           </el-upload>
-          <el-button @click="exportCsv">导出 CSV</el-button>
+          <el-button @click="exportCsv">导出数据</el-button>
           <el-button type="danger" :disabled="selected.length === 0" @click="batchDelete">批量删除</el-button>
           <el-button type="primary" @click="openCreate">新增图书</el-button>
         </div>

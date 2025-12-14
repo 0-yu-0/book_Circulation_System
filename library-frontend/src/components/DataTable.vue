@@ -11,7 +11,7 @@
     <el-table-column v-if="showSelection" type="selection" width="55" />
     <slot name="columns" />
   </el-table>
-  <div class="pagination-container">
+  <div v-if="showPagination" class="pagination-container">
     <el-pagination 
       :total="total" 
       :page-size="pageSize" 
@@ -34,10 +34,11 @@ const props = defineProps({
   pageSize: { type: Number, default: 10 }, 
   loading: Boolean,
   fixedHeight: { type: Boolean, default: false },
-  showSelection: { type: Boolean, default: true }
+  showSelection: { type: Boolean, default: true },
+  showPagination: { type: Boolean, default: true }
 })
 
-const { data, total, page, pageSize, loading, showSelection } = toRefs(props)
+const { data, total, page, pageSize, loading, showSelection, showPagination } = toRefs(props)
 
 // 表格高度计算
 const tableHeight = ref(null)

@@ -2,11 +2,15 @@
   <layout>
     <template #default>
       <el-tabs v-model="tab">
-        <el-tab-pane label="热门图书" name="popular">
+        <el-tab-pane label="柱状图" name="popularChart">
           <div style="margin-top:12px">
             <el-card>
               <div ref="barChartContainer" class="chart-container"></div>
             </el-card>
+          </div>
+        </el-tab-pane>
+        <el-tab-pane label="数据详情" name="popularTable">
+          <div style="margin-top:12px">
             <data-table 
               :data="popularList" 
               :loading="loading" 
@@ -14,6 +18,7 @@
               :page="page"
               :page-size="pageSize"
               :total="popularTotal"
+              :show-pagination="false"
               @page-change="handlePopularPageChange"
               @size-change="handlePopularSizeChange"
             >
@@ -53,7 +58,7 @@ function getBookTitle(item) {
   )
 }
 
-const tab = ref('popular')
+const tab = ref('popularChart')
 const popularList = ref([])
 const overdue = ref([])
 const loading = ref(false)
@@ -81,12 +86,23 @@ async function loadData() {
     // 修复：热门图书不需要分页，所以保持原有逻辑
     const p = await api.getPopularBooks()
     if (p && p.code === 0) {
-      popularList.value = Array.isArray(p.data) ? p.data : (p.data.items || [])
+      let popularData = Array.isArray(p.data) ? p.data : (p.data.items || [])
+      
+      // 确保数据按照借阅次数递减顺序排列
+      popularData.sort((a, b) => {
+        const countA = a.borrowCount || a.count || 0
+        const countB = b.borrowCount || b.count || 0
+        return countB - countA
+      })
+      
+      popularList.value = popularData
       popularTotal.value = popularList.value.length
       console.debug('[Statistics] popularList loaded, count=', popularList.value.length)
       
       // Render bar chart after data loaded
-      renderBarChart(popularList.value)
+      if (tab.value === 'popularChart') {
+        renderBarChart(popularList.value)
+      }
     } else {
       ElMessage.error(p?.message || '获取热门图书失败')
     }
@@ -323,7 +339,7 @@ function renderPieChart(data) {
 // Handle tab switching - render charts lazily
 function handleTabSwitch(name) {
   nextTick(() => {
-    if (name === 'popular' && barChartContainer.value) {
+    if (name === 'popularChart' && barChartContainer.value) {
       renderBarChart(popularList.value)
     } else if (name === 'overdue' && pieChartContainer.value && !pieChartInitialized) {
       renderPieChart(overdue.value)
@@ -348,6 +364,6 @@ onBeforeUnmount(() => {
 <style scoped>
 .chart-container {
   width: 100%;
-  height: 300px;
+  height: 450px;
 }
 </style>

@@ -9,7 +9,7 @@ public class readerInformation {
      * 含义说明： 读者信息
      * 组成：readerId、readerName、readerCardType、readerCardNumber、
      * readerPhoneNumber、registerDate、readerStatus、
-     * totalBorrowNumber、nowBorrowNumber
+     * maxBorrowNumber、nowBorrowNumber
      */
     private String readerId;              // 读者编号（可以是自定义ID）
     private String readerName;            // 读者姓名
@@ -18,7 +18,7 @@ public class readerInformation {
     private String readerPhoneNumber;     // 联系电话
     private LocalDate registerDate;         // 注册日期
     private int readerStatus;          // 读者状态（如：正常、挂失
-    private int totalBorrowNumber;       // 累计借阅次数
+    private int maxBorrowNumber;       // 最大借书数目
     private int nowBorrowNumber;         // 当前借阅数量
 
     /**
@@ -34,13 +34,13 @@ public class readerInformation {
      * @param readerPhoneNumber
      * @param registerDate
      * @param readerStatus
-     * @param totalBorrowNumber
+     * @param maxBorrowNumber
      * @param nowBorrowNumber
      */
     public readerInformation(String readerId, String readerName, String readerCardType,
                              String readerCardNumber,  String readerPhoneNumber,
                              LocalDate registerDate, int readerStatus,
-                             int totalBorrowNumber, int nowBorrowNumber) {
+                             int maxBorrowNumber, int nowBorrowNumber) {
         this.readerId = readerId;
         this.readerName = readerName;
         this.readerCardType = readerCardType;
@@ -48,7 +48,7 @@ public class readerInformation {
         this.readerPhoneNumber = readerPhoneNumber;
         this.registerDate = registerDate;
         this.readerStatus = readerStatus;
-        this.totalBorrowNumber = totalBorrowNumber;
+        this.maxBorrowNumber = maxBorrowNumber;
         this.nowBorrowNumber = nowBorrowNumber;
     }
     /**
@@ -97,11 +97,13 @@ public class readerInformation {
     public void setReaderStatus(int readerStatus) {
         this.readerStatus = readerStatus;
     }
-    public int getTotalBorrowNumber() {
-        return totalBorrowNumber;
+    // 修改字段名称，使其与数据库设计文档一致
+    public int getMaxBorrowNumber() {
+        return maxBorrowNumber;
     }
-    public void setTotalBorrowNumber(int totalBorrowNumber) {
-        this.totalBorrowNumber = totalBorrowNumber;
+    // 修改字段名称，使其与数据库设计文档一致
+    public void setMaxBorrowNumber(int maxBorrowNumber) {
+        this.maxBorrowNumber = maxBorrowNumber;
     }
     public int getNowBorrowNumber() {
         return nowBorrowNumber;

@@ -10,7 +10,7 @@ function normalizeReader(r){
     phone: r.readerPhoneNumber ?? r.phone,
     registerDate: r.registerDate ?? r.registerDate,
     status: r.readerStatus ?? r.status ?? 0,
-    borrowLimit: r.totalBorrowNumber ?? r.borrowLimit ?? 5, // 优先使用totalBorrowNumber字段
+    borrowLimit: r.maxBorrowNumber ?? r.totalBorrowNumber ?? r.borrowLimit ?? 5, // 保持原来的字段名以兼容前端
     currentBorrowCount: r.currentBorrowCount ?? r.nowBorrowNumber ?? 0
   }
 }

@@ -1,16 +1,16 @@
 <template>
   <layout>
     <template #default>
-      <el-page-header>
-        <template #content>
-          <span>借阅历史</span>
-        </template>
-      </el-page-header>
+<!--      <el-page-header>-->
+<!--        <template #content>-->
+<!--          <span>借阅历史</span>-->
+<!--        </template>-->
+<!--      </el-page-header>-->
       
-      <el-card style="margin-top: 20px;">
+      <el-card class="search-card">
         <el-form :inline="true" @submit.prevent="search">
-          <el-form-item label="读者ID">
-            <el-input v-model="searchForm.readerId" placeholder="请输入读者ID" />
+          <el-form-item label="读者卡号">
+            <el-input v-model="searchForm.readerId" placeholder="请输入读者卡号" />
           </el-form-item>
           <el-form-item label="图书名称">
             <el-input v-model="searchForm.bookTitle" placeholder="请输入图书名称" />
@@ -30,7 +30,7 @@
         </el-form>
       </el-card>
       
-      <el-card style="margin-top: 20px;">
+      <el-card style="margin-top: 15px;">
         <data-table 
           :data="borrowRecords" 
           :loading="loading" 
@@ -154,3 +154,12 @@ function handleSizeChange(size) {
   loadBorrowRecords()
 }
 </script>
+
+<style scoped>
+.search-card {
+  margin: 20px 0 0px 0;
+  background-color: #f5f5f5; /* 与系统主内容区域背景保持一致 */
+  box-shadow: none; /* 去除阴影效果 */
+  border: none; /* 去除边框 */
+}
+</style>

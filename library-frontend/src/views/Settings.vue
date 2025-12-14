@@ -3,12 +3,12 @@
     <template #default>
       <el-skeleton :loading="loading" animated :rows="8">
         <template #default>
-          <el-page-header>
-            <template #content>
-              <span>系统设置</span>
-            </template>
-          </el-page-header>
-          
+<!--          <el-page-header>-->
+<!--            <template #content>-->
+<!--              <span>系统设置</span>-->
+<!--            </template>-->
+<!--          </el-page-header>-->
+<!--          -->
           <el-tabs v-model="activeTab" style="margin-top: 20px;">
             <!-- 基本设置 Tab -->
             <el-tab-pane label="基本设置" name="basic">

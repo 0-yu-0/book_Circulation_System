@@ -14,7 +14,7 @@
               <search-form @search="onSearchReader" @reset="resetReaderSearch">
                 <template #fields>
                   <el-form-item>
-                    <el-input v-model="readerSearch" placeholder="读者姓名/卡号" />
+                    <el-input v-model="readerSearch" placeholder="读者姓名/证件号" />
                   </el-form-item>
                 </template>
               </search-form>
@@ -346,9 +346,14 @@ async function loadBooks() {
     
     const res = await bookApi.fetchBooks(params)
     if (res && res.code === 0) {
+      const data = res.data || {}
+      const items = data.items || []
+      
       // 过滤出在馆数大于0的图书
-      books.value = (res.data.items || []).filter(book => book.availableCopies > 0)
-      bookTotal.value = res.data.total || 0
+      books.value = items.filter(book => book.availableCopies > 0)
+      
+      // 更新总数为过滤后的实际数量，而不是原始总数
+      bookTotal.value = data.total ? data.total - (items.length - books.value.length) : books.value.length
     } else {
       ElMessage.error(res?.message || '获取图书列表失败')
     }
@@ -382,6 +387,7 @@ async function onSearch(){
 function resetBookSearch() {
   q.value = ''
   bookPage.value = 1
+  bookPageSize.value = 10
   loadBooks()
 }
 

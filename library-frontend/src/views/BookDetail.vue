@@ -4,9 +4,6 @@
       <el-skeleton :loading="loading" animated :rows="10">
         <template #default>
           <el-page-header @back="() => router.go(-1)">
-            <template #content>
-              <span>图书详情</span>
-            </template>
           </el-page-header>
           
           <el-card style="margin-top: 20px;">
@@ -50,9 +47,9 @@
               </el-col>
             </el-row>
             
-            <div style="margin-top: 20px; text-align: right;">
-              <el-button @click="router.push(`/books/${book.id}/edit`)">编辑</el-button>
-            </div>
+<!--            <div style="margin-top: 20px; text-align: right;">-->
+<!--              <el-button @click="router.push(`/books/${book.id}/edit`)">编辑</el-button>-->
+<!--            </div>-->
           </el-card>
         </template>
       </el-skeleton>

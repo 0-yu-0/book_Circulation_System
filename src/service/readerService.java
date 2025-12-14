@@ -84,7 +84,7 @@ public class readerService {
             LocalDate d = r.getRegisterDate();
             if (d != null) ps.setDate(6, java.sql.Date.valueOf(d)); else ps.setDate(6, null);
             ps.setInt(7, r.getReaderStatus());
-            ps.setInt(8, r.getTotalBorrowNumber());
+            ps.setInt(8, r.getMaxBorrowNumber()); // 修改为正确的getter方法
             ps.setInt(9, r.getNowBorrowNumber());
             return ps.executeUpdate() == 1;
         }
@@ -100,7 +100,7 @@ public class readerService {
             LocalDate d = r.getRegisterDate();
             if (d != null) ps.setDate(5, java.sql.Date.valueOf(d)); else ps.setDate(5, null);
             ps.setInt(6, r.getReaderStatus());
-            ps.setInt(7, r.getTotalBorrowNumber());
+            ps.setInt(7, r.getMaxBorrowNumber()); // 修改为正确的getter方法
             ps.setInt(8, r.getNowBorrowNumber());
             ps.setString(9, r.getReaderId());
             return ps.executeUpdate() == 1;
@@ -156,7 +156,8 @@ public class readerService {
         java.sql.Date rd = rs.getDate("registerDate");
         if (rd != null) r.setRegisterDate(rd.toLocalDate());
         r.setReaderStatus(rs.getInt("readerStatus"));
-        r.setTotalBorrowNumber(rs.getInt("totalBorrowNumber"));
+        // 修改字段名称，使其与数据库设计文档一致
+        r.setMaxBorrowNumber(rs.getInt("totalBorrowNumber"));
         r.setNowBorrowNumber(rs.getInt("nowBorrowNumber"));
         return r;
     }

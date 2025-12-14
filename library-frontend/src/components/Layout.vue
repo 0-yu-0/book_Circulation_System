@@ -5,7 +5,7 @@
         <el-icon v-if="isCollapse" size="24" class="logo-icon"><Collection /></el-icon>
         <div v-else class="logo-text-wrapper">
           <div class="logo-main">图书借还</div>
-          <div class="logo-sub">管理系统</div>
+          <div class="logo-main">管理系统</div>
         </div>
       </div>
       <el-menu
@@ -32,7 +32,7 @@
           </el-menu-item>
           <el-menu-item index="/statistics">
             <el-icon><DataAnalysis /></el-icon>
-            <template #title>统计</template>
+            <template #title>热门图书统计</template>
           </el-menu-item>
         </el-sub-menu>
         <el-sub-menu index="/readers">
@@ -96,6 +96,17 @@
       </el-header>
 
       <el-main class="main-content">
+        <!-- 面包屑导航 -->
+        <el-breadcrumb separator="/" class="breadcrumb">
+          <el-breadcrumb-item 
+            v-for="(item, index) in breadcrumbItems" 
+            :key="index"
+            :to="item.path"
+          >
+            {{ item.title }}
+          </el-breadcrumb-item>
+        </el-breadcrumb>
+        
         <slot />
       </el-main>
     </el-container>
@@ -127,6 +138,85 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const isCollapse = ref(false)
+
+// 面包屑导航项
+const breadcrumbItems = computed(() => {
+  const breadcrumbs = [{ path: '/dashboard', title: '首页' }]
+  
+  // 根据当前路由生成面包屑
+  switch(true) {
+    case /^\/books/.test(route.path):
+      breadcrumbs.push({ path: '/books', title: '图书管理' })
+      if (route.name === 'BookDetail') {
+        breadcrumbs.push({ path: route.path, title: '图书详情' })
+      } else {
+        breadcrumbs.push({ path: route.path, title: '图书列表' })
+      }
+      break
+      
+    case /^\/readers/.test(route.path):
+      breadcrumbs.push({ path: '/readers', title: '读者管理' })
+      if (route.name === 'ReaderDetail') {
+        breadcrumbs.push({ path: route.path, title: '读者详情' })
+      } else {
+        breadcrumbs.push({ path: route.path, title: '读者列表' })
+      }
+      break
+      
+    case route.path === '/borrow':
+      breadcrumbs.push({ path: '/borrow', title: '借还管理' })
+      breadcrumbs.push({ path: route.path, title: '借书' })
+      break
+      
+    case route.path === '/return':
+      breadcrumbs.push({ path: '/borrow', title: '借还管理' })
+      breadcrumbs.push({ path: route.path, title: '还书记录' })
+      break
+      
+    case route.path === '/borrow-history':
+      breadcrumbs.push({ path: '/borrow', title: '借还管理' })
+      breadcrumbs.push({ path: route.path, title: '借阅历史' })
+      break
+      
+    case route.path === '/overdue-records':
+      breadcrumbs.push({ path: '/borrow', title: '借还管理' })
+      breadcrumbs.push({ path: route.path, title: '逾期记录' })
+      break
+      
+    case route.path === '/statistics':
+      breadcrumbs.push({ path: '/books', title: '图书管理' })
+      breadcrumbs.push({ path: route.path, title: '热门图书统计' })
+      break
+      
+    case route.path === '/settings':
+      breadcrumbs.push({ path: route.path, title: '系统设置' })
+      break
+      
+    default:
+      breadcrumbs.push({ path: route.path, title: getPageTitle(route.name) })
+  }
+  
+  return breadcrumbs
+})
+
+// 获取页面标题
+function getPageTitle(routeName) {
+  const titles = {
+    'Overview': '概览',
+    'BookList': '图书列表',
+    'BookDetail': '图书详情',
+    'ReaderList': '读者列表',
+    'ReaderDetail': '读者详情',
+    'Borrow': '借书',
+    'Return': '还书记录',
+    'BorrowHistory': '借阅历史',
+    'OverdueRecords': '逾期记录',
+    'Statistics': '统计',
+    'Settings': '系统设置'
+  }
+  
+  return titles[routeName] || routeName || '未知页面'
+}
 
 const activeMenu = computed(() => {
   const { meta, path } = route
@@ -172,6 +262,11 @@ function handleUserCommand(command) {
   transition: all 0.3s ease;
   overflow: hidden;
   border-bottom: 1px solid #e4e7ed;
+  position: relative;
+}
+
+.logo:hover {
+  background-color: #f0f8ff;
 }
 
 .logo-icon {
@@ -189,6 +284,8 @@ function handleUserCommand(command) {
   font-size: 18px;
   font-weight: bold;
   line-height: 1.2;
+  color: #303133;
+  letter-spacing: 1px;
 }
 
 .logo-sub {
@@ -196,6 +293,14 @@ function handleUserCommand(command) {
   font-weight: normal;
   line-height: 1.2;
   opacity: 0.8;
+  color: #606266;
+  margin-top: 2px;
+}
+
+/* 添加动画效果 */
+.logo-main,
+.logo-sub {
+  transition: all 0.3s ease;
 }
 
 .sidebar-menu {
@@ -235,5 +340,15 @@ function handleUserCommand(command) {
   background-color: #f5f5f5;
   padding: 20px;
   overflow-y: auto;
+}
+
+.breadcrumb {
+  margin-bottom: 20px;
+  background-color: #f5f5f5; /* 与系统主内容区域背景保持一致 */
+  padding: 12px 16px;
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  font-family: inherit; /* 继承系统默认字体 */
+  font-size: 14px; /* 与系统其他部分保持一致 */
 }
 </style>

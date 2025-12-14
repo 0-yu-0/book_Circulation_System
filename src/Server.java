@@ -380,7 +380,7 @@ public class Server {
                     if (m.get("readerPhoneNumber")!=null) r.setReaderPhoneNumber(String.valueOf(m.get("readerPhoneNumber")));
                     if (m.get("registerDate")!=null) r.setRegisterDate(LocalDate.parse(String.valueOf(m.get("registerDate"))));
                     if (m.get("readerStatus")!=null) r.setReaderStatus(Integer.parseInt(String.valueOf(m.get("readerStatus"))));
-                    if (m.get("totalBorrowNumber")!=null) r.setTotalBorrowNumber(Integer.parseInt(String.valueOf(m.get("totalBorrowNumber"))));
+                    if (m.get("totalBorrowNumber")!=null) r.setMaxBorrowNumber(Integer.parseInt(String.valueOf(m.get("totalBorrowNumber"))));
                     if (m.get("nowBorrowNumber")!=null) r.setNowBorrowNumber(Integer.parseInt(String.valueOf(m.get("nowBorrowNumber"))));
                     boolean ok = readerService.createReader(r);
                     if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","create failed"));
@@ -402,7 +402,7 @@ public class Server {
                         if (m.get("readerPhoneNumber")!=null) r.setReaderPhoneNumber(String.valueOf(m.get("readerPhoneNumber")));
                         if (m.get("registerDate")!=null) r.setRegisterDate(LocalDate.parse(String.valueOf(m.get("registerDate"))));
                         if (m.get("readerStatus")!=null) r.setReaderStatus(Integer.parseInt(String.valueOf(m.get("readerStatus"))));
-                        if (m.get("totalBorrowNumber")!=null) r.setTotalBorrowNumber(Integer.parseInt(String.valueOf(m.get("totalBorrowNumber"))));
+                        if (m.get("totalBorrowNumber")!=null) r.setMaxBorrowNumber(Integer.parseInt(String.valueOf(m.get("totalBorrowNumber"))));
                         if (m.get("nowBorrowNumber")!=null) r.setNowBorrowNumber(Integer.parseInt(String.valueOf(m.get("nowBorrowNumber"))));
                         boolean ok = readerService.updateReader(r);
                         if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","update failed"));
