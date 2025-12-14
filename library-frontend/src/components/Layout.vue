@@ -11,9 +11,9 @@
       <el-menu
         :default-active="activeMenu"
         :collapse="isCollapse"
-        background-color="#f5f5f5"
-        text-color="#333333"
-        active-text-color="#409eff"
+        background-color="#FFFFFF"
+        text-color="#4B5563"
+        active-text-color="#1D4ED8"
         router
         class="sidebar-menu"
       >
@@ -245,10 +245,18 @@ function handleUserCommand(command) {
 }
 
 .sidebar {
-  background-color: #f5f5f5;
-  transition: width 0.3s ease;
+  background-color: #FFFFFF;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   overflow-x: hidden;
   border-right: 1px solid #e4e7ed;
+}
+
+.el-sub-menu {
+  background-color: #FFFFFF !important;
+}
+
+.el-sub-menu .el-menu {
+  background-color: #FFFFFF !important;
 }
 
 .logo {
@@ -309,6 +317,25 @@ function handleUserCommand(command) {
 
 .sidebar-menu:not(.el-menu--collapse) {
   width: 200px;
+}
+
+.sidebar-menu .el-menu-item {
+  transition: all 0.2s ease;
+}
+
+.sidebar-menu .el-menu-item:hover {
+  background-color: #E5E7EB !important;
+  color: #1D4ED8 !important;
+  border-radius: 4px;
+  margin: 0 8px;
+}
+
+.sidebar-menu .el-menu-item.is-active {
+  background-color: #E5E7EB !important;
+  color: #1D4ED8 !important;
+  border-radius: 4px;
+  margin: 0 8px;
+  font-weight: 500;
 }
 
 .header {
