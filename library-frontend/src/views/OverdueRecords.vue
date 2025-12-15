@@ -17,6 +17,7 @@
           </el-form-item>
           <el-form-item>
             <el-button type="primary" @click="search">查询</el-button>
+            <el-button @click="resetSearch">重置</el-button>
           </el-form-item>
         </el-form>
       </el-card>
@@ -119,6 +120,18 @@ function search() {
 
 function handlePageChange(newPage) {
   page.value = newPage
+  loadOverdueRecords()
+}
+
+function resetSearch() {
+  // 重置搜索表单
+  searchForm.value = {
+    readerName: '',
+    bookTitle: ''
+  }
+  // 重置页码
+  page.value = 1
+  // 重新加载数据
   loadOverdueRecords()
 }
 

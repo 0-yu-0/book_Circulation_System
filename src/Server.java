@@ -178,8 +178,21 @@ public class Server {
                         String search = q.get("search");
                         String author = q.get("author");
                         String category = q.get("category");
-                        List<bookInformation> items = bookService.listBooks(offset, limit, search, author, category);
-                        int total = bookService.countBooks(search, author, category);
+                        String availableOnly = q.get("availableOnly");
+                        
+                        List<bookInformation> items;
+                        int total;
+                        
+                        if ("true".equalsIgnoreCase(availableOnly)) {
+                            // 只获取可用图书
+                            items = bookService.getVacantBooks(offset, limit);
+                            total = bookService.countVacantBooks();
+                        } else {
+                            // 获取所有图书
+                            items = bookService.listBooks(offset, limit, search, author, category);
+                            total = bookService.countBooks(search, author, category);
+                        }
+                        
                         Map<String,Object> data = new HashMap<>();
                         data.put("items", items);
                         data.put("total", total);
@@ -646,7 +659,8 @@ public class Server {
                         int totalBooks = 0; int totalReaders = 0; int borrowedNow = 0; int overdue = 0;
                         int todayBorrows = 0; int todayReturns = 0;
                         
-                        try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT COUNT(*) FROM bookInformation")) {
+                        // 修改：统计图书总册数而不是图书种类数
+                        try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT SUM(bookTotalCopies) FROM bookInformation")) {
                             try (java.sql.ResultSet rs = ps.executeQuery()) { if (rs.next()) totalBooks = rs.getInt(1); }
                         }
                         try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT COUNT(*) FROM readerInformation")) {

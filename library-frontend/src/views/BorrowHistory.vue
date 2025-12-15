@@ -25,6 +25,7 @@
           </el-form-item>
           <el-form-item>
             <el-button type="primary" @click="search">查询</el-button>
+            <el-button @click="resetSearch">重置</el-button>
             <el-button type="warning" @click="refreshStatus" :loading="refreshing">刷新状态</el-button>
           </el-form-item>
         </el-form>
@@ -146,6 +147,19 @@ async function refreshStatus() {
   } finally {
     refreshing.value = false
   }
+}
+
+function resetSearch() {
+  // 重置搜索表单
+  searchForm.value = {
+    readerId: '',
+    bookTitle: '',
+    status: ''
+  }
+  // 重置页码
+  page.value = 1
+  // 重新加载数据
+  loadBorrowRecords()
 }
 
 function handleSizeChange(size) {

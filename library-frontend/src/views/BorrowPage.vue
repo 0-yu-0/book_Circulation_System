@@ -262,6 +262,20 @@ const receipt = ref(null)
 // 页面加载时获取读者列表
 onMounted(() => {
   loadReaders()
+  
+  // 监听借书成功事件，重新加载图书列表
+  const handleBorrowSuccess = () => {
+    if (step.value === 2) {
+      loadBooks()
+    }
+  }
+  
+  window.addEventListener('borrow-success', handleBorrowSuccess)
+  
+  // 组件卸载时移除事件监听器
+  return () => {
+    window.removeEventListener('borrow-success', handleBorrowSuccess)
+  }
 })
 
 // 监听路由变化，如果离开借书页面则清空借书篮
@@ -341,7 +355,8 @@ async function loadBooks() {
     const params = {
       page: bookPage.value,
       size: bookPageSize.value,
-      search: q.value
+      search: q.value,
+      availableOnly: 'true'  // 只获取可用图书
     }
     
     const res = await bookApi.fetchBooks(params)
@@ -349,11 +364,9 @@ async function loadBooks() {
       const data = res.data || {}
       const items = data.items || []
       
-      // 过滤出在馆数大于0的图书
-      books.value = items.filter(book => book.availableCopies > 0)
-      
-      // 更新总数为过滤后的实际数量，而不是原始总数
-      bookTotal.value = data.total ? data.total - (items.length - books.value.length) : books.value.length
+      // 后端已经过滤了可用图书，直接使用返回的数据
+      books.value = items
+      bookTotal.value = data.total || 0
     } else {
       ElMessage.error(res?.message || '获取图书列表失败')
     }
