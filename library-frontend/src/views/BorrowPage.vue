@@ -232,6 +232,7 @@ const step = ref(1)
 const card = ref('')
 const reader = ref(null)
 const q = ref('')
+const author = ref('') // 作者搜索
 const books = ref([])
 const loading = ref(false)
 const isOpenBasket = ref(false) // 控制借书篮是否展开
@@ -359,7 +360,12 @@ async function loadBooks() {
       page: bookPage.value,
       size: bookPageSize.value,
       search: q.value,
-      availableOnly: 'true'  // 只获取可用图书
+      author: author.value // 添加作者搜索参数
+    }
+    
+    // 只有当没有搜索条件时才使用availableOnly，否则使用普通搜索（后端会在搜索中过滤可用图书）
+    if (!q.value && !author.value) {
+      params.availableOnly = 'true'  // 只获取可用图书
     }
     
     const res = await bookApi.fetchBooks(params)
@@ -402,6 +408,7 @@ async function onSearch(){
 // 重置图书搜索
 function resetBookSearch() {
   q.value = ''
+  author.value = '' // 重置作者搜索
   bookPage.value = 1
   bookPageSize.value = 10
   loadBooks()

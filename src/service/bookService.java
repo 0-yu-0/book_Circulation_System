@@ -33,7 +33,7 @@ public class bookService {
 				ps.setString(idx++, s);
 				ps.setString(idx++, s);  // 第三个参数用于作者搜索
 			}
-			if (author != null && !author.isBlank()) ps.setString(idx++, author);
+			if (author != null && !author.isBlank()) ps.setString(idx++, "%" + author + "%");
 			if (category != null && !category.isBlank()) ps.setString(idx++, category);
 			ps.setInt(idx++, limit);
 			ps.setInt(idx, offset);
@@ -211,20 +211,20 @@ public class bookService {
 	/**
 	 * Return total count matching filters for pagination
 	 */
-	public static int countBooks(String search, String author, String category) throws SQLException {
-		StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM bookInformation WHERE 1=1");
-			if (search != null && !search.isBlank()) sql.append(" AND (bookName LIKE ? OR isbn LIKE ? OR bookAuthor LIKE ?)");
-			if (author != null && !author.isBlank()) sql.append(" AND bookAuthor LIKE ?");
-		if (category != null && !category.isBlank()) sql.append(" AND bookCategory = ?");
-		try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql.toString())) {
-			int idx = 1;
-			if (search != null && !search.isBlank()) {
-				String s = "%" + search + "%";
-				ps.setString(idx++, s);
-				ps.setString(idx++, s);
-				ps.setString(idx++, s);  // 第三个参数用于作者搜索
-			}
-			if (author != null && !author.isBlank()) ps.setString(idx++, author);
+		public static int countBooks(String search, String author, String category) throws SQLException {
+			StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM bookInformation WHERE 1=1");
+				if (search != null && !search.isBlank()) sql.append(" AND (bookName LIKE ? OR isbn LIKE ? OR bookAuthor LIKE ?)");
+				if (author != null && !author.isBlank()) sql.append(" AND bookAuthor LIKE ?");
+			if (category != null && !category.isBlank()) sql.append(" AND bookCategory = ?");
+			try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql.toString())) {
+				int idx = 1;
+				if (search != null && !search.isBlank()) {
+					String s = "%" + search + "%";
+					ps.setString(idx++, s);
+					ps.setString(idx++, s);
+					ps.setString(idx++, s);  // 第三个参数用于作者搜索
+				}
+				if (author != null && !author.isBlank()) ps.setString(idx++, "%" + author + "%");
 			if (category != null && !category.isBlank()) ps.setString(idx++, category);
 			try (ResultSet rs = ps.executeQuery()) { if (rs.next()) return rs.getInt(1); }
 		}

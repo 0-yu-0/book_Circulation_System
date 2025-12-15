@@ -173,42 +173,52 @@ public class borrowService {
         return 0;
     }
 
-    public static List<borrowTable> listBorrows(String readerId, Integer status, String bookTitle, int offset, int limit) throws SQLException {
-        List<borrowTable> list = new ArrayList<>();
-        StringBuilder sql = new StringBuilder("SELECT bt.*, bi.bookName as bookTitle, ri.readerName, rt.returnDate FROM borrowTable bt LEFT JOIN bookInformation bi ON bt.bookId = bi.bookId LEFT JOIN readerInformation ri ON bt.readerId = ri.readerId LEFT JOIN returnTable rt ON bt.borrowId = rt.borrowId WHERE 1=1");
-        if (readerId != null && !readerId.isBlank()) sql.append(" AND bt.readerId = ?");
-        if (status != null) sql.append(" AND bt.borrowStates = ?");
-        if (bookTitle != null && !bookTitle.isBlank()) sql.append(" AND bi.bookName LIKE ?");
-        sql.append(" ORDER BY bt.borrowDate DESC LIMIT ? OFFSET ?");
+	public static List<borrowTable> listBorrows(String readerId, Integer status, String bookTitle, String borrowDateFrom, String borrowDateTo, int offset, int limit) throws SQLException {
+		List<borrowTable> list = new ArrayList<>();
+		StringBuilder sql = new StringBuilder("SELECT bt.*, bi.bookName as bookTitle, ri.readerName, rt.returnDate FROM borrowTable bt LEFT JOIN bookInformation bi ON bt.bookId = bi.bookId LEFT JOIN readerInformation ri ON bt.readerId = ri.readerId LEFT JOIN returnTable rt ON bt.borrowId = rt.borrowId WHERE 1=1");
+		if (readerId != null && !readerId.isBlank()) sql.append(" AND bt.readerId = ?");
+		if (status != null) sql.append(" AND bt.borrowStates = ?");
+		if (bookTitle != null && !bookTitle.isBlank()) sql.append(" AND bi.bookName LIKE ?");
+		if (borrowDateFrom != null && !borrowDateFrom.isBlank()) sql.append(" AND bt.borrowDate >= ?");
+		if (borrowDateTo != null && !borrowDateTo.isBlank()) sql.append(" AND bt.borrowDate <= ?");
+		sql.append(" ORDER BY bt.borrowDate DESC LIMIT ? OFFSET ?");
 
-        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql.toString())) {
-            int idx = 1;
-            if (readerId != null && !readerId.isBlank()) {
-                ps.setString(idx++, readerId);
-            }
-            if (status != null) {
-                ps.setInt(idx++, status);
-            }
-            if (bookTitle != null && !bookTitle.isBlank()) {
-                ps.setString(idx++, "%" + bookTitle + "%");
-            }
-            ps.setInt(idx++, limit);
-            ps.setInt(idx, offset);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) list.add(mapRowToBorrowWithDetails(rs));
-            }
-        }
-        return list;
-    }
+		try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql.toString())) {
+			int idx = 1;
+			if (readerId != null && !readerId.isBlank()) {
+				ps.setString(idx++, readerId);
+			}
+			if (status != null) {
+				ps.setInt(idx++, status);
+			}
+			if (bookTitle != null && !bookTitle.isBlank()) {
+				ps.setString(idx++, "%" + bookTitle + "%");
+			}
+			if (borrowDateFrom != null && !borrowDateFrom.isBlank()) {
+				ps.setDate(idx++, java.sql.Date.valueOf(borrowDateFrom));
+			}
+			if (borrowDateTo != null && !borrowDateTo.isBlank()) {
+				ps.setDate(idx++, java.sql.Date.valueOf(borrowDateTo));
+			}
+			ps.setInt(idx++, limit);
+			ps.setInt(idx, offset);
+			try (ResultSet rs = ps.executeQuery()) {
+				while (rs.next()) list.add(mapRowToBorrowWithDetails(rs));
+			}
+		}
+		return list;
+	}
 
     /**
      * Count total borrows matching filters for pagination
      */
-    public static int countBorrows(String readerId, Integer status, String bookTitle) throws SQLException {
+    public static int countBorrows(String readerId, Integer status, String bookTitle, String borrowDateFrom, String borrowDateTo) throws SQLException {
         StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM borrowTable bt LEFT JOIN bookInformation bi ON bt.bookId = bi.bookId WHERE 1=1");
         if (readerId != null && !readerId.isBlank()) sql.append(" AND bt.readerId = ?");
         if (status != null) sql.append(" AND bt.borrowStates = ?");
         if (bookTitle != null && !bookTitle.isBlank()) sql.append(" AND bi.bookName LIKE ?");
+        if (borrowDateFrom != null && !borrowDateFrom.isBlank()) sql.append(" AND bt.borrowDate >= ?");
+        if (borrowDateTo != null && !borrowDateTo.isBlank()) sql.append(" AND bt.borrowDate <= ?");
         try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql.toString())) {
             int idx = 1;
             if (readerId != null && !readerId.isBlank()) {
@@ -219,6 +229,12 @@ public class borrowService {
             }
             if (bookTitle != null && !bookTitle.isBlank()) {
                 ps.setString(idx++, "%" + bookTitle + "%");
+            }
+            if (borrowDateFrom != null && !borrowDateFrom.isBlank()) {
+                ps.setDate(idx++, java.sql.Date.valueOf(borrowDateFrom));
+            }
+            if (borrowDateTo != null && !borrowDateTo.isBlank()) {
+                ps.setDate(idx++, java.sql.Date.valueOf(borrowDateTo));
             }
             try (ResultSet rs = ps.executeQuery()) { if (rs.next()) return rs.getInt(1); }
         }

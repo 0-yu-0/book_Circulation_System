@@ -459,6 +459,8 @@ public class Server {
                     String readerId = q.get("readerId");
                     String statusS = q.get("status");
                     String bookTitle = q.get("bookTitle");
+                    String borrowDateFrom = q.get("borrowDateFrom");
+                    String borrowDateTo = q.get("borrowDateTo");
                     Integer status = null;
                     if (statusS != null) {
                         try { status = Integer.parseInt(statusS); } catch (Exception ex1) {
@@ -470,8 +472,8 @@ public class Server {
                     if (q.containsKey("page") && q.containsKey("size")) {
                         try { int page = Integer.parseInt(q.get("page")); int size = Integer.parseInt(q.get("size")); offset = Math.max(0,(page-1))*size; limit = size; } catch(Exception exx) { offset = Integer.parseInt(q.getOrDefault("offset","0")); limit = Integer.parseInt(q.getOrDefault("limit","20")); }
                     } else { offset = Integer.parseInt(q.getOrDefault("offset","0")); limit = Integer.parseInt(q.getOrDefault("limit","20")); }
-                    var items = borrowService.listBorrows(readerId, status, bookTitle, offset, limit);
-                    int total = borrowService.countBorrows(readerId, status, bookTitle);
+                    var items = borrowService.listBorrows(readerId, status, bookTitle, borrowDateFrom, borrowDateTo, offset, limit);
+                    int total = borrowService.countBorrows(readerId, status, bookTitle, borrowDateFrom, borrowDateTo);
                     sendOk(ex, Map.of("items", items, "total", total));
                     return;
                 }
@@ -697,7 +699,7 @@ public class Server {
                         String readerId = parts[4];
                         int offset = Integer.parseInt(q.getOrDefault("offset","0"));
                         int limit = Integer.parseInt(q.getOrDefault("limit","100"));
-                        var items = borrowService.listBorrows(readerId, null, null, offset, limit);
+                        var items = borrowService.listBorrows(readerId, null, null, null, null, offset, limit);
                         sendJson(ex,200, Map.of("code",0, "data", Map.of("items", items)));
                         return;
                     } else { sendJson(ex,400, Map.of("code",400,"message","reader id required")); return; }
