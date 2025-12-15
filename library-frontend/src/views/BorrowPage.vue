@@ -80,8 +80,11 @@
             <el-col :span="isOpenBasket ? 16 : 22">
               <search-form @search="onSearch" @reset="resetBookSearch">
                 <template #fields>
-                  <el-form-item>
-                    <el-input v-model="q" placeholder="书名/作者" />
+                  <el-form-item label="书名">
+                    <el-input v-model="q" placeholder="请输入书名" />
+                  </el-form-item>
+                  <el-form-item label="作者">
+                    <el-input v-model="author" placeholder="请输入作者" />
                   </el-form-item>
                 </template>
               </search-form>

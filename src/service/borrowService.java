@@ -278,7 +278,7 @@ public class borrowService {
                     }
 
                     // Generate borrowId in format: yyyy + sequence number (4 digits)
-                    String borrowIdStr = generateBorrowId(borrowDate);
+                    String borrowIdStr = generateBorrowId(borrowDate, conn);
                     long borrowId;
                     try (PreparedStatement pib = conn.prepareStatement(insertBorrow)) {
                         pib.setString(1, borrowIdStr);
@@ -365,12 +365,25 @@ public class borrowService {
      * Example: 20230001
      */
     private static String generateBorrowId(LocalDate borrowDate) throws SQLException {
+        return generateBorrowId(borrowDate, null);
+    }
+    
+    /**
+     * Generate borrowId with connection support for transaction safety
+     */
+    private static String generateBorrowId(LocalDate borrowDate, Connection conn) throws SQLException {
         String yearPart = borrowDate.format(java.time.format.DateTimeFormatter.ofPattern("yyyy"));
         
         // Count existing borrowIds for the same year to determine sequence number
         String countSql = "SELECT COUNT(*) FROM borrowTable WHERE borrowId LIKE ?";
-        try (Connection conn = db.getConnection(); 
-             PreparedStatement ps = conn.prepareStatement(countSql)) {
+        boolean closeConnection = false;
+        
+        if (conn == null) {
+            conn = db.getConnection();
+            closeConnection = true;
+        }
+        
+        try (PreparedStatement ps = conn.prepareStatement(countSql)) {
             ps.setString(1, yearPart + "%");
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -379,6 +392,10 @@ public class borrowService {
                     String sequence = String.format("%04d", count + 1);
                     return yearPart + sequence;
                 }
+            }
+        } finally {
+            if (closeConnection && conn != null) {
+                conn.close();
             }
         }
         return yearPart + "0001"; // Default if count fails

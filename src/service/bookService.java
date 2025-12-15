@@ -20,8 +20,8 @@ public class bookService {
 	public static List<bookInformation> listBooks(int offset, int limit, String search, String author, String category) throws SQLException {
 		List<bookInformation> list = new ArrayList<>();
 		StringBuilder sql = new StringBuilder("SELECT * FROM bookInformation WHERE 1=1");
-		if (search != null && !search.isBlank()) sql.append(" AND (bookName LIKE ? OR isbn LIKE ?)");
-		if (author != null && !author.isBlank()) sql.append(" AND bookAuthor = ?");
+			if (search != null && !search.isBlank()) sql.append(" AND (bookName LIKE ? OR isbn LIKE ? OR bookAuthor LIKE ?)");
+		if (author != null && !author.isBlank()) sql.append(" AND bookAuthor LIKE ?");
 		if (category != null && !category.isBlank()) sql.append(" AND bookCategory = ?");
 		sql.append(" LIMIT ? OFFSET ?");
 
@@ -31,6 +31,7 @@ public class bookService {
 				String s = "%" + search + "%";
 				ps.setString(idx++, s);
 				ps.setString(idx++, s);
+				ps.setString(idx++, s);  // 第三个参数用于作者搜索
 			}
 			if (author != null && !author.isBlank()) ps.setString(idx++, author);
 			if (category != null && !category.isBlank()) ps.setString(idx++, category);
@@ -212,8 +213,8 @@ public class bookService {
 	 */
 	public static int countBooks(String search, String author, String category) throws SQLException {
 		StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM bookInformation WHERE 1=1");
-		if (search != null && !search.isBlank()) sql.append(" AND (bookName LIKE ? OR isbn LIKE ?)");
-		if (author != null && !author.isBlank()) sql.append(" AND bookAuthor = ?");
+			if (search != null && !search.isBlank()) sql.append(" AND (bookName LIKE ? OR isbn LIKE ? OR bookAuthor LIKE ?)");
+			if (author != null && !author.isBlank()) sql.append(" AND bookAuthor LIKE ?");
 		if (category != null && !category.isBlank()) sql.append(" AND bookCategory = ?");
 		try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql.toString())) {
 			int idx = 1;
@@ -221,6 +222,7 @@ public class bookService {
 				String s = "%" + search + "%";
 				ps.setString(idx++, s);
 				ps.setString(idx++, s);
+				ps.setString(idx++, s);  // 第三个参数用于作者搜索
 			}
 			if (author != null && !author.isBlank()) ps.setString(idx++, author);
 			if (category != null && !category.isBlank()) ps.setString(idx++, category);
