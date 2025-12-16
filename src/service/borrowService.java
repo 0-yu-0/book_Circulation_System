@@ -6,7 +6,9 @@ import entity.borrowTable;
 import java.sql.*;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 借阅服务：包含创建借阅记录的事务示例，以及基本查询接口
@@ -176,7 +178,18 @@ public class borrowService {
 	public static List<borrowTable> listBorrows(String readerId, Integer status, String bookTitle, String borrowDateFrom, String borrowDateTo, int offset, int limit) throws SQLException {
 		List<borrowTable> list = new ArrayList<>();
 		StringBuilder sql = new StringBuilder("SELECT bt.*, bi.bookName as bookTitle, ri.readerName, rt.returnDate FROM borrowTable bt LEFT JOIN bookInformation bi ON bt.bookId = bi.bookId LEFT JOIN readerInformation ri ON bt.readerId = ri.readerId LEFT JOIN returnTable rt ON bt.borrowId = rt.borrowId WHERE 1=1");
-		if (readerId != null && !readerId.isBlank()) sql.append(" AND bt.readerId = ?");
+		
+		// 修改：支持通过读者卡号或读者姓名搜索
+		if (readerId != null && !readerId.isBlank()) {
+			// 检查输入是否为数字（卡号）
+			if (readerId.matches("\\d+")) {
+				sql.append(" AND bt.readerId = ?");
+			} else {
+				// 如果不是数字，则按姓名模糊查询
+				sql.append(" AND ri.readerName LIKE ?");
+			}
+		}
+		
 		if (status != null) sql.append(" AND bt.borrowStates = ?");
 		if (bookTitle != null && !bookTitle.isBlank()) sql.append(" AND bi.bookName LIKE ?");
 		if (borrowDateFrom != null && !borrowDateFrom.isBlank()) sql.append(" AND bt.borrowDate >= ?");
@@ -186,7 +199,13 @@ public class borrowService {
 		try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql.toString())) {
 			int idx = 1;
 			if (readerId != null && !readerId.isBlank()) {
-				ps.setString(idx++, readerId);
+				if (readerId.matches("\\d+")) {
+					// 卡号精确匹配
+					ps.setString(idx++, readerId);
+				} else {
+					// 姓名模糊匹配
+					ps.setString(idx++, "%" + readerId + "%");
+				}
 			}
 			if (status != null) {
 				ps.setInt(idx++, status);
@@ -213,16 +232,34 @@ public class borrowService {
      * Count total borrows matching filters for pagination
      */
     public static int countBorrows(String readerId, Integer status, String bookTitle, String borrowDateFrom, String borrowDateTo) throws SQLException {
-        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM borrowTable bt LEFT JOIN bookInformation bi ON bt.bookId = bi.bookId WHERE 1=1");
-        if (readerId != null && !readerId.isBlank()) sql.append(" AND bt.readerId = ?");
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM borrowTable bt LEFT JOIN bookInformation bi ON bt.bookId = bi.bookId LEFT JOIN readerInformation ri ON bt.readerId = ri.readerId WHERE 1=1");
+        
+        // 修改：支持通过读者卡号或读者姓名搜索
+        if (readerId != null && !readerId.isBlank()) {
+            // 检查输入是否为数字（卡号）
+            if (readerId.matches("\\d+")) {
+                sql.append(" AND bt.readerId = ?");
+            } else {
+                // 如果不是数字，则按姓名模糊查询
+                sql.append(" AND ri.readerName LIKE ?");
+            }
+        }
+        
         if (status != null) sql.append(" AND bt.borrowStates = ?");
         if (bookTitle != null && !bookTitle.isBlank()) sql.append(" AND bi.bookName LIKE ?");
         if (borrowDateFrom != null && !borrowDateFrom.isBlank()) sql.append(" AND bt.borrowDate >= ?");
         if (borrowDateTo != null && !borrowDateTo.isBlank()) sql.append(" AND bt.borrowDate <= ?");
+        
         try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql.toString())) {
             int idx = 1;
             if (readerId != null && !readerId.isBlank()) {
-                ps.setString(idx++, readerId);
+                if (readerId.matches("\\d+")) {
+                    // 卡号精确匹配
+                    ps.setString(idx++, readerId);
+                } else {
+                    // 姓名模糊匹配
+                    ps.setString(idx++, "%" + readerId + "%");
+                }
             }
             if (status != null) {
                 ps.setInt(idx++, status);
@@ -245,7 +282,7 @@ public class borrowService {
      * Batch create borrow records given a list of bookIds. This implementation loops and calls createBorrowSingle
      * inside a transaction to provide atomic behavior. It returns an array of created borrowIds or throws SQLException on failure.
      */
-    public static List<Long> createBorrowBatch(List<String> bookIds, String readerId, LocalDate borrowDate, LocalDate dueDate) throws SQLException {
+    public static List<Long> createBorrowBatch(List<String> bookIds, String readerId, LocalDate borrowDate, LocalDate dueDate, Map<String, Integer> bookCounts) throws SQLException {
         try (Connection conn = db.getConnection()) {
             try {
                 conn.setAutoCommit(false);
@@ -269,57 +306,75 @@ public class borrowService {
                     }
                 }
                 
-                // 检查是否超过最大借书限制
-                if (currentBorrowed + bookIds.size() > maxBorrowLimit) {
-                    throw new SQLException("借书数量将超过上限，当前已借 " + currentBorrowed + " 本，最大可借 " + maxBorrowLimit + " 本，本次尝试借阅 " + bookIds.size() + " 本");
+                // 计算本次借阅的总数量（考虑每本书的借阅数量）
+                int totalBorrowCount = 0;
+                for (String bookId : bookIds) {
+                    int count = bookCounts.getOrDefault(bookId, 1);
+                    totalBorrowCount += count;
                 }
                 
+                // 检查是否超过最大借书限制
+                if (currentBorrowed + totalBorrowCount > maxBorrowLimit) {
+                    throw new SQLException("借书数量将超过上限，当前已借 " + currentBorrowed + " 本，最大可借 " + maxBorrowLimit + " 本，本次尝试借阅 " + totalBorrowCount + " 本");
+                }
+                
+                // 处理每本书的借阅，考虑借阅数量
                 for (String bookId : bookIds) {
-                    // reuse createBorrowSingle logic but we need a version that accepts a connection or replicate logic here
-                    // For simplicity, call existing single method which opens its own connection — to keep this patch small we will instead
-                    // perform per-book create by calling SQL here using the same locks as createBorrowSingle
-
+                    int borrowCount = bookCounts.getOrDefault(bookId, 1);
+                    
+                    // 检查库存是否足够
                     String selectBook = "SELECT bookAvailableCopies, borrowCount FROM bookInformation WHERE bookId = ? FOR UPDATE";
-                    String insertBorrow = "INSERT INTO borrowTable (borrowId, bookId, readerId, borrowDate, dueDate, borrowStates) VALUES (?,?,?,?,?,?)";
-                    String updateBook = "UPDATE bookInformation SET bookAvailableCopies = bookAvailableCopies - 1, borrowCount = borrowCount + 1 WHERE bookId = ?";
-                    String updateReader = "UPDATE readerInformation SET nowBorrowNumber = nowBorrowNumber + 1 WHERE readerId = ?";
-
+                    int availableCopies = 0;
+                    
                     try (PreparedStatement psb = conn.prepareStatement(selectBook)) {
                         psb.setString(1, bookId);
                         try (ResultSet rs = psb.executeQuery()) {
                             if (!rs.next()) throw new SQLException("Book not found: " + bookId);
-                            int available = rs.getInt("bookAvailableCopies");
-                            if (available < 1) throw new SQLException("No available copies for book: " + bookId);
+                            availableCopies = rs.getInt("bookAvailableCopies");
+                            if (availableCopies < borrowCount) {
+                                throw new SQLException("库存不足，书籍《" + rs.getString("bookName") + "》当前可借 " + availableCopies + " 本，尝试借阅 " + borrowCount + " 本");
+                            }
                         }
                     }
+                    
+                    // 为每本借阅的书籍创建借阅记录
+                    for (int i = 0; i < borrowCount; i++) {
+                        String insertBorrow = "INSERT INTO borrowTable (borrowId, bookId, readerId, borrowDate, dueDate, borrowStates) VALUES (?,?,?,?,?,?)";
+                        String updateBook = "UPDATE bookInformation SET bookAvailableCopies = bookAvailableCopies - 1, borrowCount = borrowCount + 1 WHERE bookId = ?";
+                        
+                        // Generate borrowId in format: yyyy + sequence number (4 digits)
+                        String borrowIdStr = generateBorrowId(borrowDate, conn);
+                        long borrowId;
+                        
+                        try (PreparedStatement pib = conn.prepareStatement(insertBorrow)) {
+                            pib.setString(1, borrowIdStr);
+                            pib.setString(2, bookId);
+                            pib.setString(3, readerId);
+                            pib.setDate(4, java.sql.Date.valueOf(borrowDate));
+                            pib.setDate(5, java.sql.Date.valueOf(dueDate));
+                            pib.setInt(6, 0);
+                            int rows = pib.executeUpdate();
+                            if (rows != 1) throw new SQLException("Insert borrow failed");
+                            borrowId = Long.parseLong(borrowIdStr); // Convert to long for return value
+                        }
 
-                    // Generate borrowId in format: yyyy + sequence number (4 digits)
-                    String borrowIdStr = generateBorrowId(borrowDate, conn);
-                    long borrowId;
-                    try (PreparedStatement pib = conn.prepareStatement(insertBorrow)) {
-                        pib.setString(1, borrowIdStr);
-                        pib.setString(2, bookId);
-                        pib.setString(3, readerId);
-                        pib.setDate(4, java.sql.Date.valueOf(borrowDate));
-                        pib.setDate(5, java.sql.Date.valueOf(dueDate));
-                        pib.setInt(6, 0);
-                        int rows = pib.executeUpdate();
-                        if (rows != 1) throw new SQLException("Insert borrow failed");
-                        borrowId = Long.parseLong(borrowIdStr); // Convert to long for return value
+                        try (PreparedStatement ub = conn.prepareStatement(updateBook)) {
+                            ub.setString(1, bookId);
+                            ub.executeUpdate();
+                        }
+
+                        created.add(borrowId);
                     }
-
-                    try (PreparedStatement ub = conn.prepareStatement(updateBook)) {
-                        ub.setString(1, bookId);
-                        ub.executeUpdate();
-                    }
-
-                    try (PreparedStatement ur = conn.prepareStatement(updateReader)) {
-                        ur.setString(1, readerId);
-                        ur.executeUpdate();
-                    }
-
-                    created.add(borrowId);
                 }
+                
+                // 更新读者当前借书数量
+                String updateReader = "UPDATE readerInformation SET nowBorrowNumber = nowBorrowNumber + ? WHERE readerId = ?";
+                try (PreparedStatement ur = conn.prepareStatement(updateReader)) {
+                    ur.setInt(1, totalBorrowCount);
+                    ur.setString(2, readerId);
+                    ur.executeUpdate();
+                }
+                
                 conn.commit();
                 return created;
             } catch (SQLException ex) {

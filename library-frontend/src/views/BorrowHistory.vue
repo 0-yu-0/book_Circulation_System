@@ -9,8 +9,8 @@
       
       <el-card class="search-card">
         <el-form :inline="true" @submit.prevent="search">
-          <el-form-item label="读者卡号">
-            <el-input v-model="searchForm.readerId" placeholder="请输入读者卡号" />
+          <el-form-item label="读者">
+            <el-input v-model="searchForm.readerId" placeholder="请输入读者卡号或姓名" />
           </el-form-item>
           <el-form-item label="图书名称">
             <el-input v-model="searchForm.bookTitle" placeholder="请输入图书名称" />

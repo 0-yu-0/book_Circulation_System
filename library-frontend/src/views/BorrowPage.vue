@@ -86,6 +86,16 @@
                   <el-form-item label="作者">
                     <el-input v-model="author" placeholder="请输入作者" />
                   </el-form-item>
+                  <el-form-item label="类别">
+                    <el-select v-model="category" placeholder="选择类别" clearable style="width: 150px;">
+                      <el-option
+                        v-for="category in categories"
+                        :key="category"
+                        :label="category"
+                        :value="category"
+                      />
+                    </el-select>
+                  </el-form-item>
                 </template>
               </search-form>
               <data-table 
@@ -233,9 +243,11 @@ const card = ref('')
 const reader = ref(null)
 const q = ref('')
 const author = ref('') // 作者搜索
+const category = ref('') // 类别搜索
 const books = ref([])
 const loading = ref(false)
 const isOpenBasket = ref(false) // 控制借书篮是否展开
+const categories = ref([]) // 图书类别列表
 
 // 读者列表相关状态
 const readers = ref([])
@@ -266,6 +278,7 @@ const receipt = ref(null)
 // 页面加载时获取读者列表
 onMounted(() => {
   loadReaders()
+  loadCategories() // 加载图书类别列表
   
   // 监听借书成功事件，重新加载图书列表
   const handleBorrowSuccess = () => {
@@ -294,6 +307,20 @@ watch(() => router.currentRoute.value, (to, from) => {
 // 切换借书篮显示状态
 function toggleBasket() {
   isOpenBasket.value = !isOpenBasket.value
+}
+
+// 加载图书类别列表
+async function loadCategories() {
+  try {
+    const res = await bookApi.fetchCategories()
+    if (res && res.code === 0) {
+      categories.value = res.data || []
+    } else {
+      ElMessage.error(res?.message || '获取图书类别失败')
+    }
+  } catch (error) {
+    ElMessage.error('获取图书类别失败: ' + (error.message || error))
+  }
 }
 
 // 加载读者列表
@@ -360,11 +387,12 @@ async function loadBooks() {
       page: bookPage.value,
       size: bookPageSize.value,
       search: q.value,
-      author: author.value // 添加作者搜索参数
+      author: author.value, // 添加作者搜索参数
+      category: category.value // 添加类别搜索参数
     }
     
-    // 只有当没有搜索条件时才使用availableOnly，否则使用普通搜索（后端会在搜索中过滤可用图书）
-    if (!q.value && !author.value) {
+    // 只有当没有任何搜索条件时才使用availableOnly，否则使用普通搜索（后端会在搜索中过滤可用图书）
+    if (!q.value && !author.value && !category.value) {
       params.availableOnly = 'true'  // 只获取可用图书
     }
     
@@ -409,6 +437,7 @@ async function onSearch(){
 function resetBookSearch() {
   q.value = ''
   author.value = '' // 重置作者搜索
+  category.value = '' // 重置类别搜索
   bookPage.value = 1
   bookPageSize.value = 10
   loadBooks()
@@ -422,7 +451,7 @@ watch(step, (newStep) => {
 })
 
 function add(book){ 
-  store.addBook(book) 
+  store.addBook(book, 1) // 明确传递数量为1
   // 点击加入借书篮按钮时自动展开借书篮
   isOpenBasket.value = true
 }

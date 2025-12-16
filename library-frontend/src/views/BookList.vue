@@ -7,6 +7,16 @@
             <el-form-item>
               <el-input v-model="filters.search" placeholder="书名/作者/ISBN" />
             </el-form-item>
+            <el-form-item>
+              <el-select v-model="filters.category" placeholder="选择类别" clearable style="width: 150px;">
+                <el-option
+                  v-for="category in categories"
+                  :key="category"
+                  :label="category"
+                  :value="category"
+                />
+              </el-select>
+            </el-form-item>
           </template>
         </search-form>
         <div class="actions">
@@ -83,7 +93,7 @@ import { useAuthStore } from '../stores/auth'
 const router = useRouter()
 const authStore = useAuthStore()
 
-const filters = ref({ search: '' })
+const filters = ref({ search: '', category: '' })
 const books = ref([])
 const total = ref(0)
 const page = ref(1)
@@ -95,11 +105,17 @@ const showForm = ref(false)
 const editingBook = ref(null)
 const loading = ref(false)
 const selected = ref([])
+const categories = ref([])
 
 async function fetch(){
   loading.value = true
   try {
-    const res = await api.fetchBooks({ page: page.value, size: pageSize.value, search: filters.value.search })
+    const res = await api.fetchBooks({ 
+      page: page.value, 
+      size: pageSize.value, 
+      search: filters.value.search,
+      category: filters.value.category
+    })
     if (res && res.code===0){ 
       books.value = res.data.items
       total.value = res.data.total 
@@ -113,7 +129,24 @@ async function fetch(){
   }
 }
 
-onMounted(()=>{ fetch(); window.addEventListener('borrow-success', fetch) })
+async function fetchCategories(){
+  try {
+    const res = await api.fetchCategories()
+    if (res && res.code===0) {
+      categories.value = res.data || []
+    } else {
+      ElMessage.error(res?.message || '获取图书类别失败')
+    }
+  } catch (error) {
+    ElMessage.error('获取图书类别失败: ' + (error.message || error))
+  }
+}
+
+onMounted(()=>{ 
+  fetch(); 
+  fetchCategories();
+  window.addEventListener('borrow-success', fetch) 
+})
 function onSearch(){ page.value = 1; fetch() }
 function onPageChange(p){ page.value = p; fetch() }
 function onSizeChange(size){ pageSize.value = size; page.value = 1; fetch() }
@@ -274,6 +307,7 @@ async function beforeUpload(file){
 
 function resetFilters() {
   filters.value.search = ''
+  filters.value.category = ''
   page.value = 1
   pageSize.value = 10
   fetch()

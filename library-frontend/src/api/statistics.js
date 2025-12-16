@@ -32,7 +32,17 @@ export async function getPopularBooks(top=10){
 }
 
 export async function getOverdueBooks(params){
-  const res = await request.get('/statistics/overdue-books', { params })
+  // Convert page/size to offset/limit for backend compatibility
+  const backendParams = { ...params }
+  if (params.page && params.size) {
+    backendParams.offset = (params.page - 1) * params.size
+    backendParams.limit = params.size
+    // Remove page/size to avoid confusion
+    delete backendParams.page
+    delete backendParams.size
+  }
+  
+  const res = await request.get('/statistics/overdue-books', { params: backendParams })
   if (!res) return res
   if (res.code === 0) {
     // Backend returns { code:0, data: { items: [], total: number } }

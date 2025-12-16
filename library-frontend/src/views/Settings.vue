@@ -91,7 +91,7 @@
                   <el-descriptions-item label="Vue版本">3.x</el-descriptions-item>
                   <el-descriptions-item label="Element Plus版本">2.x</el-descriptions-item>
                   <el-descriptions-item label="开发者">图书馆技术部</el-descriptions-item>
-                  <el-descriptions-item label="最后更新">2023-01-01</el-descriptions-item>
+                  <el-descriptions-item label="最后更新">2025-12-16</el-descriptions-item>
                 </el-descriptions>
                 
                 <div style="margin-top: 20px;">

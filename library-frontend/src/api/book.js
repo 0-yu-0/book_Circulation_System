@@ -51,3 +51,7 @@ export function deleteBook(id){
 export function patchStock(id, data){
   return request.patch(`/books/${id}/stock`, data)
 }
+
+export function fetchCategories(){
+  return request.get('/books/categories')
+}

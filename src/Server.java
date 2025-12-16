@@ -147,7 +147,7 @@ public class Server {
             if ("OPTIONS".equals(ex.getRequestMethod())) {
                 return true;
             }
-            sendJson(ex,401, Map.of("code",401,"message","unauthorized"));
+            sendJson(ex,401, Map.of("code",401,"message","未授权"));
             return false;
         }
         return true;
@@ -163,8 +163,16 @@ public class Server {
                 URI uri = ex.getRequestURI();
                 String path = uri.getPath();
                 if ("GET".equalsIgnoreCase(method)) {
-                    // /api/books or /api/books/{id}
+                    // /api/books or /api/books/{id} or /api/books/categories
                     String[] parts = path.split("/");
+                    // 首先检查categories路由
+                    if (parts.length == 4 && "categories".equals(parts[3])) {
+                        // 获取所有图书类别
+                        List<String> categories = bookService.getCategories();
+                        sendOk(ex, categories);
+                        return;
+                    }
+                    // 然后处理其他路由
                     if (parts.length == 3 || (parts.length==4 && parts[3].isEmpty())) {
                         // list (support offset/limit and page/size)
                         Map<String, String> q = queryToMap(uri.getQuery());
@@ -201,7 +209,7 @@ public class Server {
                     } else if (parts.length >=4) {
                         String id = parts[3];
                         bookInformation b = bookService.getBookById(id);
-                        if (b == null) { sendError(ex,404,1,"not found"); return; }
+                        if (b == null) { sendError(ex,404,1,"未找到图书"); return; }
                         sendOk(ex, b);
                         return;
                     }
@@ -216,10 +224,10 @@ public class Server {
                         if (m.get("adjustment")!=null) {
                             int adj = Integer.parseInt(String.valueOf(m.get("adjustment")));
                             boolean ok = bookService.adjustStock(id, adj);
-                            if (ok) { sendJson(ex,200, Map.of("code",0)); } else { sendJson(ex,500, Map.of("code",1,"message","adjust failed")); }
+                            if (ok) { sendJson(ex,200, Map.of("code",0)); } else { sendJson(ex,500, Map.of("code",1,"message","库存调整失败")); }
                             return;
                         }
-                        sendJson(ex,400, Map.of("code",400,"message","invalid body"));
+                        sendJson(ex,400, Map.of("code",400,"message","无效的请求体"));
                         return;
                     }
                 }
@@ -241,35 +249,20 @@ public class Server {
                     if (m.get("bookAvailableCopies")!=null) b.setBookAvailableCopies(Integer.parseInt(String.valueOf(m.get("bookAvailableCopies"))));
                     if (m.get("borrowCount")!=null) b.setBorrowCount(Integer.parseInt(String.valueOf(m.get("borrowCount"))));
                     boolean ok = bookService.createBook(b);
-                    if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","create failed"));
+                    if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","创建失败"));
                     return;
                 }
 
-                // PUT update
+                // PUT update for books
                 if ("PUT".equalsIgnoreCase(method) && path.startsWith("/api/books/")) {
-                    String[] parts = path.split("/");
-                    if (parts.length >=4) {
-                        String id = parts[3];
+                    String[] p = path.split("/");
+                    if (p.length>=4) {
+                        String id = p[3];
                         String body = readBody(ex);
                         bookInformation b = bookService.getBookById(id);
-                        if (b == null) { sendError(ex,404,1,"not found"); return; }
+                        if (b==null) { sendJson(ex,404, Map.of("code",1,"message","未找到图书")); return; }
                         Map<String,Object> m = mapper.readValue(body, new TypeReference<Map<String,Object>>(){});
-                        
-                        // Check ISBN uniqueness before updating
-                        if (m.get("isbn") != null) {
-                            String newIsbn = String.valueOf(m.get("isbn"));
-                            // Only check if ISBN is being changed
-                            if (!newIsbn.equals(b.getIsbn())) {
-                                // Check if new ISBN already exists in other books
-                                bookInformation existingBook = bookService.getBookByIsbn(newIsbn);
-                                if (existingBook != null && !existingBook.getBookId().equals(id)) {
-                                    sendJson(ex, 400, Map.of("code", 400, "message", "ISBN already exists: " + newIsbn));
-                                    return;
-                                }
-                            }
-                            b.setIsbn(newIsbn);
-                        }
-                        
+                        if (m.get("isbn")!=null) b.setIsbn(String.valueOf(m.get("isbn")));
                         if (m.get("bookName")!=null) b.setBookName(String.valueOf(m.get("bookName")));
                         if (m.get("bookAuthor")!=null) b.setBookAuthor(String.valueOf(m.get("bookAuthor")));
                         if (m.get("bookPublisher")!=null) b.setBookPublisher(String.valueOf(m.get("bookPublisher")));
@@ -281,7 +274,30 @@ public class Server {
                         if (m.get("bookAvailableCopies")!=null) b.setBookAvailableCopies(Integer.parseInt(String.valueOf(m.get("bookAvailableCopies"))));
                         if (m.get("borrowCount")!=null) b.setBorrowCount(Integer.parseInt(String.valueOf(m.get("borrowCount"))));
                         boolean ok = bookService.updateBook(b);
-                        if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","update failed"));
+                        if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","更新失败"));
+                        return;
+                    }
+                }
+
+                // PUT update
+                if ("PUT".equalsIgnoreCase(method) && path.startsWith("/api/readers/")) {
+                    String[] p = path.split("/");
+                    if (p.length>=4) {
+                        String id = p[3];
+                        String body = readBody(ex);
+                        readerInformation r = readerService.getReaderById(id);
+                        if (r==null) { sendJson(ex,404, Map.of("code",1,"message","未找到读者")); return; }
+                        Map<String,Object> m = mapper.readValue(body, new com.fasterxml.jackson.core.type.TypeReference<Map<String,Object>>(){});
+                        if (m.get("readerName")!=null) r.setReaderName(String.valueOf(m.get("readerName")));
+                        if (m.get("readerCardType")!=null) r.setReaderCardType(String.valueOf(m.get("readerCardType")));
+                        if (m.get("readerCardNumber")!=null) r.setReaderCardNumber(String.valueOf(m.get("readerCardNumber")));
+                        if (m.get("readerPhoneNumber")!=null) r.setReaderPhoneNumber(String.valueOf(m.get("readerPhoneNumber")));
+                        if (m.get("registerDate")!=null) r.setRegisterDate(LocalDate.parse(String.valueOf(m.get("registerDate"))));
+                        if (m.get("readerStatus")!=null) r.setReaderStatus(Integer.parseInt(String.valueOf(m.get("readerStatus"))));
+                        if (m.get("totalBorrowNumber")!=null) r.setMaxBorrowNumber(Integer.parseInt(String.valueOf(m.get("totalBorrowNumber"))));
+                        if (m.get("nowBorrowNumber")!=null) r.setNowBorrowNumber(Integer.parseInt(String.valueOf(m.get("nowBorrowNumber"))));
+                        boolean ok = readerService.updateReader(r);
+                        if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","更新失败"));
                         return;
                     }
                 }
@@ -293,15 +309,15 @@ public class Server {
                         String id = parts[3];
                         try {
                             boolean ok = bookService.deleteBook(id);
-                            if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","delete failed"));
+                            if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","删除失败"));
                         } catch (SQLException e) {
-                            sendJson(ex,500, Map.of("code",1,"message","Cannot delete book with borrowing records"));
+                            sendJson(ex,500, Map.of("code",1,"message","无法删除有借阅记录的图书"));
                         }
                         return;
                     }
                 }
 
-                sendJson(ex,405, Map.of("code",405,"message","method not allowed"));
+                sendJson(ex,405, Map.of("code",405,"message","不允许的方法"));
             } catch (SQLException se) {
                 sendJson(ex,500, Map.of("code",500,"message", se.getMessage()));
             }
@@ -321,7 +337,7 @@ public class Server {
                 if ("GET".equalsIgnoreCase(method) && parts.length>=5 && "byCard".equals(parts[3])) {
                     String card = parts[4];
                     readerInformation r = readerService.getReaderByCardNumber(card);
-                    if (r==null) { sendJson(ex,404, Map.of("code",1,"message","not found")); return; }
+                    if (r==null) { sendJson(ex,404, Map.of("code",1,"message","未找到读者")); return; }
                     sendOk(ex, r);
                     return;
                 }
@@ -347,7 +363,7 @@ public class Server {
                     } else if (parts.length>=4) {
                         String id = parts[3];
                         readerInformation r = readerService.getReaderById(id);
-                        if (r==null) { sendError(ex,404,1,"not found"); return; }
+                        if (r==null) { sendError(ex,404,1,"未找到读者"); return; }
                         sendOk(ex, r);
                         return;
                     }
@@ -379,9 +395,9 @@ public class Server {
                         // Provide more detailed error message with available fields
                         sendJson(ex, 400, Map.of(
                             "code", 400, 
-                            "message", "readerName is required", 
+                            "message", "读者姓名是必填项", 
                             "availableFields", m.keySet(),
-                            "suggestion", "Please include 'readerName' field in your request"
+                            "suggestion", "请在请求中包含'readerName'字段"
                         ));
                         return;
                     }
@@ -396,7 +412,7 @@ public class Server {
                     if (m.get("totalBorrowNumber")!=null) r.setMaxBorrowNumber(Integer.parseInt(String.valueOf(m.get("totalBorrowNumber"))));
                     if (m.get("nowBorrowNumber")!=null) r.setNowBorrowNumber(Integer.parseInt(String.valueOf(m.get("nowBorrowNumber"))));
                     boolean ok = readerService.createReader(r);
-                    if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","create failed"));
+                    if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","创建失败"));
                     return;
                 }
 
@@ -407,7 +423,7 @@ public class Server {
                         String id = p[3];
                         String body = readBody(ex);
                         readerInformation r = readerService.getReaderById(id);
-                        if (r==null) { sendJson(ex,404, Map.of("code",1,"message","not found")); return; }
+                        if (r==null) { sendJson(ex,404, Map.of("code",1,"message","未找到读者")); return; }
                         Map<String,Object> m = mapper.readValue(body, new com.fasterxml.jackson.core.type.TypeReference<Map<String,Object>>(){});
                         if (m.get("readerName")!=null) r.setReaderName(String.valueOf(m.get("readerName")));
                         if (m.get("readerCardType")!=null) r.setReaderCardType(String.valueOf(m.get("readerCardType")));
@@ -418,7 +434,7 @@ public class Server {
                         if (m.get("totalBorrowNumber")!=null) r.setMaxBorrowNumber(Integer.parseInt(String.valueOf(m.get("totalBorrowNumber"))));
                         if (m.get("nowBorrowNumber")!=null) r.setNowBorrowNumber(Integer.parseInt(String.valueOf(m.get("nowBorrowNumber"))));
                         boolean ok = readerService.updateReader(r);
-                        if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","update failed"));
+                        if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","更新失败"));
                         return;
                     }
                 }
@@ -430,15 +446,15 @@ public class Server {
                         String id = p[3];
                         try {
                             boolean ok = readerService.deleteReader(id);
-                            if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","delete failed"));
+                            if (ok) sendJson(ex,200, Map.of("code",0)); else sendJson(ex,500, Map.of("code",1,"message","删除失败"));
                         } catch (SQLException e) {
-                            sendJson(ex,500, Map.of("code",1,"message","Cannot delete reader with borrowing records"));
+                            sendJson(ex,500, Map.of("code",1,"message","无法删除有借阅记录的读者"));
                         }
                         return;
                     }
                 }
 
-                sendJson(ex,405, Map.of("code",405,"message","method not allowed"));
+                sendJson(ex,405, Map.of("code",405,"message","不允许的方法"));
             } catch (SQLException se) {
                 sendJson(ex,500, Map.of("code",500,"message", se.getMessage()));
             }
@@ -496,15 +512,26 @@ public class Server {
                     if (m.get("books") != null) {
                         java.util.List<?> books = (java.util.List<?>) m.get("books");
                         java.util.List<String> bookIds = new java.util.ArrayList<>();
+                        java.util.Map<String, Integer> bookCounts = new java.util.HashMap<>();
+                        
                         for (Object o : books) {
                             if (o instanceof java.util.Map) {
                                 Object bid = ((java.util.Map<?,?>)o).get("bookId");
-                                if (bid != null) bookIds.add(String.valueOf(bid));
+                                Object count = ((java.util.Map<?,?>)o).get("count");
+                                if (bid != null) {
+                                    String bookId = String.valueOf(bid);
+                                    bookIds.add(bookId);
+                                    // 如果有count参数，使用它；否则默认为1
+                                    int borrowCount = (count != null) ? Integer.parseInt(String.valueOf(count)) : 1;
+                                    bookCounts.put(bookId, borrowCount);
+                                }
                             } else {
-                                bookIds.add(String.valueOf(o));
+                                String bookId = String.valueOf(o);
+                                bookIds.add(bookId);
+                                bookCounts.put(bookId, 1); // 默认借阅数量为1
                             }
                         }
-                        var created = borrowService.createBorrowBatch(bookIds, readerId, borrowDate, dueDate);
+                        var created = borrowService.createBorrowBatch(bookIds, readerId, borrowDate, dueDate, bookCounts);
                         sendOk(ex, Map.of("borrowIds", created));
                     } else {
                         String bookId = m.get("bookId") == null ? "" : String.valueOf(m.get("bookId"));
@@ -514,12 +541,12 @@ public class Server {
                      return;
                  }
 
-                sendJson(ex,405, Map.of("code",405,"message","method not allowed"));
+                sendJson(ex,405, Map.of("code",405,"message","不允许的方法"));
                 return;
             } catch (SQLException se) {
                 sendJson(ex,500, Map.of("code",500,"message", se.getMessage()));
             } catch (Exception e) {
-                sendJson(ex,400, Map.of("code",400,"message","invalid request"));
+                sendJson(ex,400, Map.of("code",400,"message","无效的请求"));
             }
         }
     }
@@ -530,7 +557,7 @@ public class Server {
             try {
                 if (!requireAuth(ex)) return;
                 if (!"POST".equalsIgnoreCase(ex.getRequestMethod())) {
-                    sendJson(ex,405, Map.of("code",405,"message","method not allowed"));
+                    sendJson(ex,405, Map.of("code",405,"message","不允许的方法"));
                     return;
                 }
                 String body = readBody(ex);
@@ -551,7 +578,7 @@ public class Server {
              } catch (SQLException se) {
                  sendJson(ex,500, Map.of("code",500,"message", se.getMessage()));
              } catch (Exception e) {
-                 sendJson(ex,400, Map.of("code",400,"message","invalid request"));
+                 sendJson(ex,400, Map.of("code",400,"message","无效的请求"));
              }
          }
      }
@@ -561,7 +588,7 @@ public class Server {
         public void handle(HttpExchange ex) throws IOException {
             try {
                 if (!"POST".equalsIgnoreCase(ex.getRequestMethod())) {
-                    sendJson(ex,405, Map.of("code",405,"message","method not allowed"));
+                    sendJson(ex,405, Map.of("code",405,"message","不允许的方法"));
                     return;
                 }
                 String body = readBody(ex);
@@ -570,12 +597,12 @@ public class Server {
                 String password = m.get("password") == null ? "" : String.valueOf(m.get("password"));
                 String token = service.authService.login(username, password);
                 if (token == null) {
-                    sendJson(ex,401, Map.of("code",1,"message","invalid credentials"));
+                    sendJson(ex,401, Map.of("code",1,"message","无效的凭证"));
                     return;
                 }
                 sendJson(ex,200, Map.of("code",0,"data", Map.of("token", token)));
             } catch (Exception e) {
-                sendJson(ex,400, Map.of("code",400,"message","invalid request"));
+                sendJson(ex,400, Map.of("code",400,"message","无效的请求"));
             }
         }
     }
@@ -585,16 +612,16 @@ public class Server {
         @Override
         public void handle(HttpExchange ex) throws IOException {
             try {
-                if (!"POST".equalsIgnoreCase(ex.getRequestMethod())) { sendJson(ex,405, Map.of("code",405,"message","method not allowed")); return; }
+                if (!"POST".equalsIgnoreCase(ex.getRequestMethod())) { sendJson(ex,405, Map.of("code",405,"message","不允许的方法")); return; }
                 String body = readBody(ex);
                 Map<String,Object> m = mapper.readValue(body, new TypeReference<Map<String,Object>>(){});
                 String username = m.get("username") == null ? "" : String.valueOf(m.get("username"));
                 String password = m.get("password") == null ? "" : String.valueOf(m.get("password"));
                 String token = service.authService.login(username, password);
-                if (token == null) { sendJson(ex,401, Map.of("code",1,"message","invalid credentials")); return; }
+                if (token == null) { sendJson(ex,401, Map.of("code",1,"message","无效的凭证")); return; }
                 sendJson(ex,200, Map.of("code",0,"data", Map.of("token", token)));
             } catch (Exception e) {
-                sendJson(ex,400, Map.of("code",400,"message","invalid request"));
+                sendJson(ex,400, Map.of("code",400,"message","无效的请求"));
             }
         }
     }
@@ -603,13 +630,13 @@ public class Server {
         @Override
         public void handle(HttpExchange ex) throws IOException {
             try {
-                if (!"POST".equalsIgnoreCase(ex.getRequestMethod())) { sendJson(ex,405, Map.of("code",405,"message","method not allowed")); return; }
+                if (!"POST".equalsIgnoreCase(ex.getRequestMethod())) { sendJson(ex,405, Map.of("code",405,"message","不允许的方法")); return; }
                 String token = getAuthToken(ex);
                 // simple: remove token if exists
                 if (token != null) { /* authService doesn't expose remove, but we can accept logout as client-side action */ }
                 sendJson(ex,200, Map.of("code",0));
             } catch (Exception e) {
-                sendJson(ex,400, Map.of("code",400,"message","invalid request"));
+                sendJson(ex,400, Map.of("code",400,"message","无效的请求"));
             }
         }
     }
@@ -620,11 +647,11 @@ public class Server {
             try {
                 if (!requireAuth(ex)) return;
                 String method = ex.getRequestMethod();
-                if (!"GET".equalsIgnoreCase(method)) { sendJson(ex,405, Map.of("code",405,"message","method not allowed")); return; }
+                if (!"GET".equalsIgnoreCase(method)) { sendJson(ex,405, Map.of("code",405,"message","不允许的方法")); return; }
                 URI uri = ex.getRequestURI();
                 String path = uri.getPath();
                 String[] parts = path.split("/");
-                if (parts.length < 4) { sendJson(ex,400, Map.of("code",400,"message","no statistic type")); return; }
+                if (parts.length < 4) { sendJson(ex,400, Map.of("code",400,"message","未指定统计类型")); return; }
                 String type = parts[3];
                 Map<String,String> q = queryToMap(uri.getQuery());
                 // accept frontend naming too
@@ -644,8 +671,17 @@ public class Server {
                     sendOk(ex, data);
                     return;
                 } else if ("overdue".equalsIgnoreCase(type) || "overdue-books".equalsIgnoreCase(type)) {
-                    int offset = Integer.parseInt(q.getOrDefault("offset","0"));
-                    int limit = Integer.parseInt(q.getOrDefault("limit","20"));
+                    // Support both offset/limit and page/size parameters for pagination
+                    int offset, limit;
+                    if (q.containsKey("page") && q.containsKey("size")) {
+                        int page = Integer.parseInt(q.getOrDefault("page","1"));
+                        int size = Integer.parseInt(q.getOrDefault("size","20"));
+                        offset = (page - 1) * size;
+                        limit = size;
+                    } else {
+                        offset = Integer.parseInt(q.getOrDefault("offset","0"));
+                        limit = Integer.parseInt(q.getOrDefault("limit","20"));
+                    }
                     String readerName = q.get("readerName");
                     String bookTitle = q.get("bookTitle");
                     var items = borrowService.getOverdueList(readerName, bookTitle, offset, limit);
@@ -702,15 +738,15 @@ public class Server {
                         var items = borrowService.listBorrows(readerId, null, null, null, null, offset, limit);
                         sendJson(ex,200, Map.of("code",0, "data", Map.of("items", items)));
                         return;
-                    } else { sendJson(ex,400, Map.of("code",400,"message","reader id required")); return; }
+                    } else { sendJson(ex,400, Map.of("code",400,"message","需要读者ID")); return; }
                 } else {
-                    sendJson(ex,404, Map.of("code",1,"message","unknown statistic type"));
+                    sendJson(ex,404, Map.of("code",1,"message","未知的统计类型"));
                     return;
                 }
             } catch (SQLException se) {
                 sendJson(ex,500, Map.of("code",500,"message", se.getMessage()));
             } catch (Exception e) {
-                sendJson(ex,400, Map.of("code",400,"message","invalid request"));
+                sendJson(ex,400, Map.of("code",400,"message","无效的请求"));
             }
         }
     }

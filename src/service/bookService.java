@@ -250,6 +250,22 @@ public class bookService {
 	}
 
 	/**
+	 * 获取所有不重复的图书类别
+	 */
+	public static List<String> getCategories() throws SQLException {
+		List<String> categories = new ArrayList<>();
+		String sql = "SELECT DISTINCT bookCategory FROM bookInformation WHERE bookCategory IS NOT NULL AND bookCategory != '' ORDER BY bookCategory";
+		try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+			try (ResultSet rs = ps.executeQuery()) {
+				while (rs.next()) {
+					categories.add(rs.getString("bookCategory"));
+				}
+			}
+		}
+		return categories;
+	}
+
+	/**
 	 * Generate bookId in format: 41, 42, 43... (start from current max + 1)
 	 * Avoid duplicate entries by checking existing IDs
 	 */

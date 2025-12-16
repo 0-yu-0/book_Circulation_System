@@ -69,6 +69,8 @@ const total = ref(0)
 
 const records = ref([])
 const loading = ref(false)
+// Store all filtered records for client-side pagination
+const allFilteredRecords = ref([])
 
 onMounted(() => {
   fetchRecords()
@@ -76,6 +78,8 @@ onMounted(() => {
 
 async function applyFilters(){
   page.value = 1
+  // Clear cached records when filters change
+  allFilteredRecords.value = []
   await fetchRecords()
 }
 
@@ -85,18 +89,46 @@ function resetFilters(){
   borrowDateRange.value = []
   page.value = 1
   pageSize.value = 10
+  // Clear cached records when filters change
+  allFilteredRecords.value = []
   fetchRecords()
 }
 
 async function onPageChange(p){
   page.value = p
-  fetchRecords()
+  // For borrowed status, use client-side pagination from cached records
+  if (status.value === 'borrowed' && allFilteredRecords.value.length > 0) {
+    // Calculate pagination indices
+    const startIndex = (page.value - 1) * pageSize.value
+    const endIndex = startIndex + pageSize.value
+    
+    // Get the paginated subset of filtered items
+    const paginatedItems = allFilteredRecords.value.slice(startIndex, endIndex)
+    
+    records.value = normalizeRecords(paginatedItems)
+    // total.value remains the same as it was set during initial fetch
+  } else {
+    fetchRecords()
+  }
 }
 
 async function onSizeChange(size){
   pageSize.value = size
   page.value = 1
-  fetchRecords()
+  // For borrowed status, use client-side pagination from cached records
+  if (status.value === 'borrowed' && allFilteredRecords.value.length > 0) {
+    // Calculate pagination indices
+    const startIndex = (page.value - 1) * pageSize.value
+    const endIndex = startIndex + pageSize.value
+    
+    // Get the paginated subset of filtered items
+    const paginatedItems = allFilteredRecords.value.slice(startIndex, endIndex)
+    
+    records.value = normalizeRecords(paginatedItems)
+    // total.value remains the same as it was set during initial fetch
+  } else {
+    fetchRecords()
+  }
 }
 
 // Centralized fetch that supports pagination and filters
@@ -107,17 +139,12 @@ async function fetchRecords(){
     // If status is 'overdue' -> if reader specified, fetch borrowed by reader and filter overdue client-side; otherwise call statistics overdue endpoint
 
     if (status.value === 'borrowed' || status.value === 'all') {
+      // For borrowed status, we need to fetch all records and filter client-side
+      // because we need to show both borrowed (0) and overdue (2) books
       const params = {
         page: page.value,
-        size: pageSize.value
-      }
-      
-      if (status.value === 'borrowed') {
-        // For borrowed status, query both borrowed (0) and overdue (2) books
-        // We'll fetch all records and filter client-side
-        params.status = 'all' // Fetch all records
-      } else if (status.value !== 'all') {
-        params.status = status.value
+        size: pageSize.value,
+        status: 'all' // Fetch all records
       }
 
       // borrow date range
@@ -148,26 +175,47 @@ async function fetchRecords(){
         }
       }
 
-      const res = await borrowApi.fetchBorrowRecords(params)
-      if (res && res.code === 0) {
-        const data = res.data || {}
-        const items = data.items || data || []
+      // For borrowed status, we need to fetch all records and filter client-side
+      // Only fetch all records if we don't have cached data or filters have changed
+      if (status.value === 'borrowed' && allFilteredRecords.value.length === 0) {
+        // First, get all records without pagination to count the total
+        const countParams = { ...params, size: 1000 }
+        const countRes = await borrowApi.fetchBorrowRecords(countParams)
         
-        // Filter out returned books when status is 'borrowed'
-        let filteredItems = items
-        if (status.value === 'borrowed') {
-          filteredItems = items.filter(item => {
+        if (countRes && countRes.code === 0) {
+          const allItems = countRes.data.items || countRes.data || []
+          allFilteredRecords.value = allItems.filter(item => {
             const statusValue = item.borrowStates ?? item.borrowStatus ?? item.status
-            return statusValue === 0 || statusValue === 2 // Only show borrowed (0) and overdue (2) books
+            return statusValue === 0 // Only show borrowed (0) books
           })
+          total.value = allFilteredRecords.value.length
         }
+      }
+      
+      // For borrowed status, implement client-side pagination since we're filtering client-side
+      if (status.value === 'borrowed') {
+        // Calculate pagination indices
+        const startIndex = (page.value - 1) * pageSize.value
+        const endIndex = startIndex + pageSize.value
         
-        records.value = normalizeRecords(filteredItems)
-        total.value = filteredItems.length
+        // Get the paginated subset of filtered items
+        const paginatedItems = allFilteredRecords.value.slice(startIndex, endIndex)
+        
+        records.value = normalizeRecords(paginatedItems)
       } else {
-        ElMessage.error(res?.message || '加载借阅记录失败')
-        records.value = []
-        total.value = 0
+        // For other statuses, use server-side pagination
+        const res = await borrowApi.fetchBorrowRecords(params)
+        if (res && res.code === 0) {
+          const data = res.data || {}
+          const items = data.items || data || []
+          
+          records.value = normalizeRecords(items)
+          total.value = data.total || items.length
+        } else {
+          ElMessage.error(res?.message || '加载借阅记录失败')
+          records.value = []
+          total.value = 0
+        }
       }
 
     } else if (status.value === 'overdue') {
@@ -188,6 +236,23 @@ async function fetchRecords(){
             loading.value = false
             return
           }
+          // First, get the total count of all borrowed records for this reader
+          const countRes = await borrowApi.fetchBorrowRecords({ readerId, status: 'borrowed', size: 1000 })
+          let totalCount = 0
+          if (countRes && countRes.code === 0) {
+            const allItems = countRes.data.items || countRes.data || []
+            // Count all overdue records
+            const allOverdueItems = (allItems || []).filter(it => {
+              const due = it.dueDate || it.due_date
+              if (!due) return false
+              const dueDate = new Date(due)
+              const today = new Date()
+              return dueDate < new Date(today.toDateString()) // compare date-only
+            })
+            totalCount = allOverdueItems.length
+          }
+          
+          // Then get the paginated records
           const res = await borrowApi.fetchBorrowRecords({ readerId, status: 'borrowed', page: page.value, size: pageSize.value })
           if (res && res.code === 0) {
             const items = res.data.items || res.data || []
@@ -200,7 +265,7 @@ async function fetchRecords(){
               return dueDate < new Date(today.toDateString()) // compare date-only
             })
             records.value = normalizeRecords(overdueItems)
-            total.value = overdueItems.length
+            total.value = totalCount
           } else {
             ElMessage.error(res?.message || '加载借阅记录失败')
             records.value = []
@@ -214,9 +279,7 @@ async function fetchRecords(){
       } else {
         // global overdue list via statistics API
         try {
-          const offset = (page.value - 1) * pageSize.value
-          const lim = pageSize.value
-          const params = { offset, limit: lim }
+          const params = { page: page.value, size: pageSize.value }
           
           // 添加读者姓名筛选参数（使用card搜索框的内容）
           if (card.value) {
@@ -227,7 +290,8 @@ async function fetchRecords(){
           if (res && res.code === 0) {
             const items = Array.isArray(res.data) ? res.data : (res.data && res.data.items) ? res.data.items : []
             records.value = normalizeRecords(items)
-            total.value = items.length
+            // Use the total count from the API response instead of items.length
+            total.value = res.data.total || items.length
           } else {
             ElMessage.error(res?.message || '加载逾期记录失败')
             records.value = []

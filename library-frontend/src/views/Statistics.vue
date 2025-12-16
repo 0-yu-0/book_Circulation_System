@@ -29,7 +29,6 @@
             </data-table>
           </div>
         </el-tab-pane>
-
       </el-tabs>
     </template>
   </layout>
@@ -60,23 +59,17 @@ function getBookTitle(item) {
 
 const tab = ref('popularChart')
 const popularList = ref([])
-const overdue = ref([])
 const loading = ref(false)
 const page = ref(1)
 const pageSize = ref(10)
 const popularTotal = ref(0)
-const overdueTotal = ref(0)
 
 // Chart containers
 const barChartContainer = ref(null)
-const pieChartContainer = ref(null)
 
 // Chart instances
 let barChart = null
-let pieChart = null
 let barChartDispose = null
-let pieChartDispose = null
-let pieChartInitialized = false
 
 // Load data
 async function loadData() {
@@ -106,31 +99,6 @@ async function loadData() {
     } else {
       ElMessage.error(p?.message || '获取热门图书失败')
     }
-
-    // 修复：传递正确的分页参数给getOverdueBooks
-    const o = await api.getOverdueBooks({ page: page.value, size: pageSize.value })
-    if (o && o.code === 0) {
-      // 修复：正确处理API响应数据结构
-      const data = o.data || {}
-      // normalize: if backend returns {items, total}
-      if (Array.isArray(o.data)) {
-        overdue.value = o.data
-        overdueTotal.value = o.data.length
-      } else if (o.data && Array.isArray(o.data.items)) {
-        overdue.value = o.data.items
-        overdueTotal.value = o.data.total || o.data.items.length
-      } else {
-        overdue.value = Array.isArray(o.data) ? o.data : (o.data.items || [])
-        overdueTotal.value = overdue.value.length
-      }
-
-      console.debug('[Statistics] overdue loaded, count=', overdue.value.length, 'total=', overdueTotal.value)
-      // Only render pie chart if the overdue tab is currently active; otherwise defer to tab switch
-
-      if (tab.value === 'overdue') {
-        renderPieChart(overdue.value)
-      }
-    }
   } catch (err) {
     console.error('[Statistics] loadData failed:', err)
     ElMessage.error('加载统计数据失败: ' + (err.message || err))
@@ -145,17 +113,6 @@ function handlePopularPageChange(p) {
 }
 
 function handlePopularSizeChange(size) {
-  pageSize.value = size
-  page.value = 1
-  loadData()
-}
-
-function handleOverduePageChange(newPage) {
-  page.value = newPage
-  loadData()
-}
-
-function handleOverdueSizeChange(size) {
   pageSize.value = size
   page.value = 1
   loadData()
@@ -255,94 +212,11 @@ function renderBarChart(data, attempts = 0) {
   }))
 }
 
-// Render pie chart for overdue books by category
-function renderPieChart(data) {
-  // dispose previous
-  pieChartDispose && pieChartDispose()
-  pieChart = null
-  pieChartDispose = null
-
-  if (!data || data.length === 0) {
-    // initialize an empty chart with a 'no data' placeholder so container is visible
-    initECharts(pieChartContainer.value, ({ chart }) => {
-      const option = {
-        title: { text: '逾期图书分类统计', left: 'center' },
-        graphic: [{
-          type: 'text',
-          left: 'center',
-          top: 'middle',
-          style: { text: '暂无数据', fontSize: 14, fill: '#999' }
-        }],
-        series: []
-      }
-      return option
-    }, { waitOptions: { interval: 100, timeout: 2000 } })
-      .then(({ chart, dispose }) => { pieChart = chart; pieChartDispose = dispose; pieChartInitialized = true })
-      .catch(err => console.warn('Failed to init empty pie chart:', err.message))
-    return
-  }
-
-  initECharts(pieChartContainer.value, ({ chart }) => {
-    const categoryKeys = [...new Set(data.map(r => r.category).filter(Boolean))]
-    const categories = {}
-    categoryKeys.forEach(k => categories[k] = 0)
-    data.forEach(r => {
-      if (r.category) {
-        categories[r.category] = (categories[r.category] || 0) + 1
-      }
-    })
-
-    const option = {
-      title: { text: '逾期图书分类统计', left: 'center' },
-      tooltip: { trigger: 'item' },
-      legend: { orient: 'horizontal', bottom: 'bottom' },
-      series: [
-        {
-          name: '逾期数量',
-          type: 'pie',
-          radius: ['40%', '70%'],
-          avoidLabelOverlap: false,
-          itemStyle: { 
-            borderRadius: 10, 
-            borderColor: '#fff', 
-            borderWidth: 2 
-          },
-          label: { 
-            show: false, 
-            position: 'center' 
-          },
-          emphasis: { 
-            label: { 
-              show: true, 
-              fontSize: '16', 
-              fontWeight: 'bold' 
-            } 
-          },
-          labelLine: { show: false },
-          data: categoryKeys.map(key => ({ 
-            value: Math.max(0, categories[key]), // 确保值不为负数
-            name: key 
-          }))
-        }
-      ]
-    }
-    return option
-  }, { waitOptions: { interval: 100, timeout: 3000 } })
-    .then(({ chart, dispose }) => { 
-      pieChart = chart
-      pieChartDispose = dispose
-      pieChartInitialized = true
-    })
-    .catch(err => console.warn('Failed to init pie chart:', err.message))
-}
-
 // Handle tab switching - render charts lazily
 function handleTabSwitch(name) {
   nextTick(() => {
     if (name === 'popularChart' && barChartContainer.value) {
       renderBarChart(popularList.value)
-    } else if (name === 'overdue' && pieChartContainer.value && !pieChartInitialized) {
-      renderPieChart(overdue.value)
     }
   })
 }
@@ -357,7 +231,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   // Clean up chart instances
   barChartDispose && barChartDispose()
-  pieChartDispose && pieChartDispose()
 })
 </script>
 
